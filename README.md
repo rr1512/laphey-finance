@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aplikasi Pencatat Keuangan
 
-## Getting Started
+Aplikasi sederhana untuk mencatat pengeluaran menggunakan Next.js dan Supabase.
 
-First, run the development server:
+## Fitur
+
+### 💰 Manajemen Pengeluaran
+- ✅ Input pengeluaran tunggal (divisi, jumlah, keterangan, kategori)
+- ✅ Input pengeluaran multiple/bulk dengan grouping
+- ✅ Tampilkan daftar pengeluaran dengan grouping berdasarkan batch
+- ✅ Hitung total pengeluaran per batch dan keseluruhan
+- ✅ Tracking pengeluaran dengan batch_id untuk grouping
+
+### 🏢 Manajemen Divisi
+- ✅ CRUD divisi (Create, Read, Update, Delete)
+- ✅ Validasi divisi yang sedang digunakan
+- ✅ Kategorisasi pengeluaran berdasarkan divisi
+
+### 🎨 User Interface
+- ✅ Layout modern dengan header dan sidebar
+- ✅ Responsive design untuk mobile dan desktop
+- ✅ Navigasi yang mudah digunakan
+- ✅ UI components dengan shadcn/ui
+- ✅ Mobile sidebar dengan overlay
+
+## Setup
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Setup Supabase
+
+1. Buat project baru di [Supabase](https://supabase.com)
+2. Jalankan SQL script dari file `supabase-schema.sql` di SQL Editor Supabase
+3. Dapatkan URL dan Service Role Key dari Settings > API
+
+### 3. Environment Variables
+
+Buat file `.env.local` di root project:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_public_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+```
+
+### 4. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka [http://localhost:3000](http://localhost:3000) di browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Struktur Database
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Tabel `expenses`
 
-## Learn More
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| amount | DECIMAL(12,2) | Jumlah pengeluaran |
+| description | TEXT | Keterangan pengeluaran |
+| category | VARCHAR(100) | Kategori pengeluaran |
+| created_at | TIMESTAMP | Waktu dibuat |
 
-To learn more about Next.js, take a look at the following resources:
+## Teknologi
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Frontend**: Next.js 14 with App Router
+- **UI Components**: shadcn/ui
+- **Styling**: Tailwind CSS
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: None (menggunakan Service Role Key)
+- **RLS**: Disabled (untuk kesederhanaan)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Catatan Keamanan
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+⚠️ **Peringatan**: Aplikasi ini menggunakan Service Role Key dan tidak menggunakan RLS policy untuk kesederhanaan. Jangan gunakan di production tanpa implementasi keamanan yang proper.
