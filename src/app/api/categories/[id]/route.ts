@@ -4,16 +4,18 @@ import { supabaseServer } from '@/lib/supabase-server'
 // GET - Fetch single category with subcategories
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+
     const { data, error } = await supabaseServer
       .from('categories')
       .select(`
         *,
         subcategories (*)
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (error) {
@@ -38,9 +40,10 @@ export async function GET(
 // PUT - Update category
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { name, description, color } = body
 
@@ -53,13 +56,13 @@ export async function PUT(
 
     const { data, error } = await supabaseServer
       .from('categories')
-      .update({ 
-        name: name.trim(), 
+      .update({
+        name: name.trim(),
         description: description?.trim() || null,
         color: color || '#3B82F6',
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
 
     if (error) {
@@ -91,14 +94,16 @@ export async function PUT(
 // DELETE - Delete category
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+
     // Check if category is used in any expenses
     const { data: expenses, error: expenseError } = await supabaseServer
       .from('expenses')
       .select('id')
-      .eq('category_id', params.id)
+      .eq('category_id', id)
       .limit(1)
 
     if (expenseError) {
@@ -115,7 +120,7 @@ export async function DELETE(
     const { data, error } = await supabaseServer
       .from('categories')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
 
     if (error) {

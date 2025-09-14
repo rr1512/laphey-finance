@@ -522,7 +522,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                 <div className="flex flex-wrap gap-2">
                   {filters.search && (
                     <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                      Pencarian: "{filters.search}"
+                      Pencarian: &quot;{filters.search}&quot;
                     </span>
                   )}
                   {filters.divisionId && filters.divisionId !== 'all' && (
@@ -622,7 +622,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                           </div>
                           {invoice.notes && (
                             <div className="text-sm text-gray-500 italic mt-1 truncate max-w-xs">
-                              "{invoice.notes}"
+                              &quot;{invoice.notes}&quot;
                             </div>
                           )}
                         </td>

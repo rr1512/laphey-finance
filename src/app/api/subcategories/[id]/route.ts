@@ -4,9 +4,10 @@ import { supabaseServer } from '@/lib/supabase-server'
 // PUT - Update subcategory
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { name, description, category_id } = body
 
@@ -19,13 +20,13 @@ export async function PUT(
 
     const { data, error } = await supabaseServer
       .from('subcategories')
-      .update({ 
-        name: name.trim(), 
+      .update({
+        name: name.trim(),
         description: description?.trim() || null,
         category_id,
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select(`
         *,
         category:categories(*)
@@ -60,14 +61,16 @@ export async function PUT(
 // DELETE - Delete subcategory
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+
     // Check if subcategory is used in any expenses
     const { data: expenses, error: expenseError } = await supabaseServer
       .from('expenses')
       .select('id')
-      .eq('subcategory_id', params.id)
+      .eq('subcategory_id', id)
       .limit(1)
 
     if (expenseError) {
@@ -84,7 +87,7 @@ export async function DELETE(
     const { data, error } = await supabaseServer
       .from('subcategories')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
 
     if (error) {

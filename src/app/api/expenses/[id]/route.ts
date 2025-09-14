@@ -4,7 +4,7 @@ import { convertToWIBISO } from '@/lib/timezone'
 import { AuthService } from '@/lib/auth'
 
 // GET - Get single expense
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check authentication
     const accessToken = request.cookies.get('accessToken')?.value
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         { status: 401 }
       )
     }
-    const { id } = params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json(
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT - Update expense
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check authentication
     const accessToken = request.cookies.get('accessToken')?.value
@@ -79,7 +79,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       )
     }
 
-    const { id } = params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json(
@@ -120,12 +120,18 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     if (details && Array.isArray(details)) {
       const totalAmount = details.reduce((sum: number, item: any) => sum + (item.amount || 0), 0)
-      updateData.total_amount = totalAmount
-      updateData.details = JSON.stringify(details)
+      updateData = {
+        ...updateData,
+        total_amount: totalAmount,
+        details: JSON.stringify(details)
+      }
     }
 
     if (date) {
-      updateData.date = convertToWIBISO(date)
+      updateData = {
+        ...updateData,
+        date: convertToWIBISO(date)
+      }
     }
 
     const { data, error } = await supabaseServer
@@ -156,7 +162,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Delete expense
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check authentication
     const accessToken = request.cookies.get('accessToken')?.value
@@ -176,7 +182,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       )
     }
 
-    const { id } = params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json(

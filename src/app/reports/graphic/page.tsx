@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -100,7 +100,7 @@ export default function GraphicPage() {
   }
 
   // Process data for charts
-  const processChartData = () => {
+  const processChartData = useCallback(() => {
     let filteredExpenses = expenses
 
     // Apply filters
@@ -163,7 +163,7 @@ export default function GraphicPage() {
     setChartData(chartData)
     setTotalAmount(filteredExpenses.reduce((sum, exp) => sum + exp.total_amount, 0))
     setIsLoading(false)
-  }
+  }, [expenses, filters])
 
   useEffect(() => {
     fetchExpenses()
@@ -174,7 +174,7 @@ export default function GraphicPage() {
     if (expenses.length > 0) {
       processChartData()
     }
-  }, [expenses, filters])
+  }, [expenses, filters, processChartData])
 
   const handleFilterChange = (key: keyof FilterState, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }))

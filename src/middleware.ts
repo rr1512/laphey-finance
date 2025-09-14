@@ -18,13 +18,17 @@ export function middleware(request: NextRequest) {
   // Skip public API routes
   const publicApiRoutes = [
     '/api/auth/login',
-    '/api/auth/logout'
+    '/api/auth/logout',
+    '/api/auth/me'
   ]
 
   const isPublicApi = publicApiRoutes.some(route => pathname.startsWith(route))
 
-  if (pathname.startsWith('/api/') && !isPublicApi) {
-    console.log(`[MIDDLEWARE] API Route: ${pathname}`)
+  if (isPublicApi) {
+    return NextResponse.next()
+  }
+
+  if (pathname.startsWith('/api/')) {
     // API routes will be protected below
   }
 
@@ -38,18 +42,15 @@ export function middleware(request: NextRequest) {
 
   if (!token) {
     if (pathname.startsWith('/api/')) {
-      console.log(`[MIDDLEWARE] API: No access token for ${pathname}, returning 401`)
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       )
     } else {
-      console.log(`[MIDDLEWARE] Page: No access token for ${pathname}, redirecting to login`)
       return NextResponse.redirect(new URL('/login', request.url))
     }
   }
 
-  console.log(`[MIDDLEWARE] Access token found for ${pathname}, allowing access`)
   return NextResponse.next()
 }
 

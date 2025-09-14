@@ -4,13 +4,15 @@ import { supabaseServer } from '@/lib/supabase-server'
 // GET - Fetch single division
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+
     const { data, error } = await supabaseServer
       .from('divisions')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (error) {
@@ -35,9 +37,10 @@ export async function GET(
 // PUT - Update division
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { name, description } = body
 
@@ -50,12 +53,12 @@ export async function PUT(
 
     const { data, error } = await supabaseServer
       .from('divisions')
-      .update({ 
-        name: name.trim(), 
+      .update({
+        name: name.trim(),
         description: description?.trim() || null,
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
 
     if (error) {
@@ -87,14 +90,16 @@ export async function PUT(
 // DELETE - Delete division
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+
     // Check if division is used in any expenses
     const { data: expenses, error: expenseError } = await supabaseServer
       .from('expenses')
       .select('id')
-      .eq('division_id', params.id)
+      .eq('division_id', id)
       .limit(1)
 
     if (expenseError) {
@@ -111,7 +116,7 @@ export async function DELETE(
     const { data, error } = await supabaseServer
       .from('divisions')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
 
     if (error) {

@@ -4,9 +4,10 @@ import { supabaseServer } from '@/lib/supabase-server'
 // PUT - Update PIC
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { name, phone, email, position, division_id, is_active } = body
 
@@ -19,8 +20,8 @@ export async function PUT(
 
     const { data, error } = await supabaseServer
       .from('pics')
-      .update({ 
-        name: name.trim(), 
+      .update({
+        name: name.trim(),
         phone: phone.trim(),
         email: email?.trim() || null,
         position: position?.trim() || null,
@@ -28,7 +29,7 @@ export async function PUT(
         is_active: is_active !== undefined ? is_active : true,
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select(`
         *,
         division:divisions(*)
@@ -63,14 +64,16 @@ export async function PUT(
 // DELETE - Delete PIC (soft delete by setting is_active = false)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+
     // Check if PIC is used in any expenses
     const { data: expenses, error: expenseError } = await supabaseServer
       .from('expenses')
       .select('id')
-      .eq('pic_id', params.id)
+      .eq('pic_id', id)
       .limit(1)
 
     if (expenseError) {
@@ -81,11 +84,11 @@ export async function DELETE(
       // Soft delete if PIC has expenses
       const { data, error } = await supabaseServer
         .from('pics')
-        .update({ 
+        .update({
           is_active: false,
           updated_at: new Date().toISOString()
         })
-        .eq('id', params.id)
+        .eq('id', id)
         .select()
 
       if (error) {
@@ -105,7 +108,7 @@ export async function DELETE(
       const { data, error } = await supabaseServer
         .from('pics')
         .delete()
-        .eq('id', params.id)
+        .eq('id', id)
         .select()
 
       if (error) {

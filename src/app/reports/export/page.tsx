@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -66,7 +66,7 @@ export default function ExportReportPage() {
   })
 
   // Fetch expenses data
-  const fetchExpenses = async () => {
+  const fetchExpenses = useCallback(async () => {
     try {
       const response = await fetch('/api/expenses')
       if (response.ok) {
@@ -80,10 +80,10 @@ export default function ExportReportPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [showError])
 
   // Fetch filter options
-  const fetchFilterOptions = async () => {
+  const fetchFilterOptions = useCallback(async () => {
     try {
       const [divisionsRes, categoriesRes, picsRes] = await Promise.all([
         fetch('/api/divisions'),
@@ -108,7 +108,7 @@ export default function ExportReportPage() {
     } catch (error) {
       console.error('Error fetching filter options:', error)
     }
-  }
+  }, [])
 
   // Apply filters
   useEffect(() => {
@@ -150,7 +150,7 @@ export default function ExportReportPage() {
   useEffect(() => {
     fetchExpenses()
     fetchFilterOptions()
-  }, [])
+  }, [fetchExpenses, fetchFilterOptions])
 
   const handleFilterChange = (key: keyof FilterState, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }))
