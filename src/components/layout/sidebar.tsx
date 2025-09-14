@@ -117,7 +117,7 @@ export function Sidebar({ className }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-4 py-4">
+      <nav className="flex-1 space-y-2 px-4 py-4 mb-4">
         {navigation.map((item) => {
           const isActive = pathname === item.href
           const isSubmenuExpanded = expandedMenus.includes(item.name)
@@ -125,15 +125,15 @@ export function Sidebar({ className }: SidebarProps) {
           const Icon = item.icon
           
           return (
-            <div key={item.name} className="space-y-1">
+            <div key={item.name} className="space-y-2">
               {/* Main Menu Item */}
               {item.hasSubmenu ? (
                 <button
                   className={cn(
-                    "w-full h-12 px-3 py-2 rounded-md text-left transition-colors",
+                    "w-full h-14 px-3 py-3 rounded-md text-left transition-colors",
                     "flex items-center gap-3",
                     isActive || hasActiveSubmenu
-                      ? "bg-blue-600 text-white hover:bg-blue-700" 
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
                       : "text-gray-700 hover:bg-gray-100"
                   )}
                   onClick={() => toggleSubmenu(item.name)}
@@ -158,10 +158,10 @@ export function Sidebar({ className }: SidebarProps) {
                 <Link 
                   href={item.href} 
                   className={cn(
-                    "w-full h-12 px-3 py-2 rounded-md text-left transition-colors block",
+                    "w-full h-14 px-3 py-3 rounded-md text-left transition-colors block",
                     "flex items-center gap-3",
                     isActive
-                      ? "bg-blue-600 text-white hover:bg-blue-700" 
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
                       : "text-gray-700 hover:bg-gray-100"
                   )}
                 >
@@ -180,7 +180,7 @@ export function Sidebar({ className }: SidebarProps) {
 
               {/* Submenu */}
               {item.hasSubmenu && isSubmenuExpanded && (
-                <div className="ml-6 space-y-1">
+                <div className="ml-6 space-y-2 mt-2">
                   {item.submenu?.map((subItem) => {
                     const isSubActive = pathname === subItem.href
                     const SubIcon = subItem.icon
@@ -190,10 +190,10 @@ export function Sidebar({ className }: SidebarProps) {
                         key={subItem.name}
                         href={subItem.href} 
                         className={cn(
-                          "w-full h-10 px-3 py-2 rounded-md text-left transition-colors block",
+                          "w-full h-12 px-3 py-2 rounded-md text-left transition-colors block",
                           "flex items-center gap-3",
-                          isSubActive 
-                            ? "bg-blue-600 text-white hover:bg-blue-700" 
+                          isSubActive
+                            ? "bg-blue-600 text-white hover:bg-blue-700"
                             : "text-gray-600 hover:bg-gray-100"
                         )}
                       >

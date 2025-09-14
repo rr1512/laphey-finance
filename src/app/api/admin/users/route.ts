@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Data tidak valid', details: error.errors },
+        { error: 'Data tidak valid', details: error.issues },
         { status: 400 }
       )
     }
@@ -157,11 +157,65 @@ export async function PATCH(request: NextRequest) {
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Data tidak valid', details: error.errors },
+        { error: 'Data tidak valid', details: error.issues },
         { status: 400 }
       )
     }
 
+    return NextResponse.json(
+      { error: 'Terjadi kesalahan server' },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT - Edit user (Superadmin only)
+export async function PUT(request: NextRequest) {
+  try {
+    // Check authentication and role
+    const accessToken = request.cookies.get('accessToken')?.value
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Token tidak ditemukan' },
+        { status: 401 }
+      )
+    }
+
+    const decoded = AuthService.verifyToken(accessToken)
+    if (!decoded || decoded.role !== 'superadmin') {
+      return NextResponse.json(
+        { error: 'Akses ditolak. Hanya Super Admin yang dapat mengakses.' },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const { userId, name, email } = body
+
+    if (!userId || !name || !email) {
+      return NextResponse.json(
+        { error: 'User ID, name, dan email diperlukan' },
+        { status: 400 }
+      )
+    }
+
+    // Update user
+    const success = await AuthService.updateUserProfileAdmin(userId, name, email)
+
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Gagal memperbarui user' },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'User berhasil diperbarui'
+    })
+
+  } catch (error) {
+    console.error('Update user error:', error)
     return NextResponse.json(
       { error: 'Terjadi kesalahan server' },
       { status: 500 }
@@ -229,7 +283,7 @@ export async function DELETE(request: NextRequest) {
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Data tidak valid', details: error.errors },
+        { error: 'Data tidak valid', details: error.issues },
         { status: 400 }
       )
     }

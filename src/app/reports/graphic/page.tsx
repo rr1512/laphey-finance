@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { DashboardLayout } from "@/components/dashboard-layout"
+import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -336,7 +336,7 @@ export default function GraphicPage() {
   }
 
   return (
-    <DashboardLayout>
+    <MainLayout>
       <div className="space-y-6">
 
 
@@ -387,7 +387,7 @@ export default function GraphicPage() {
 
         {/* Filters */}
         <div className="bg-white rounded-lg shadow-lg border-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
+          <div className="bg-slate-800 px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/10 rounded-lg">
@@ -502,7 +502,7 @@ export default function GraphicPage() {
 
         {/* Chart */}
         <div className="bg-white rounded-lg shadow-lg border-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
+          <div className="bg-slate-800 px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/10 rounded-lg">
@@ -535,7 +535,7 @@ export default function GraphicPage() {
 
         {/* Data Table */}
         <div className="bg-white rounded-lg shadow-lg border-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
+          <div className="bg-slate-800 px-6 py-4">
             <h3 className="text-lg font-semibold text-white">Detail Data</h3>
           </div>
           <div className="p-6">
@@ -570,6 +570,6 @@ export default function GraphicPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </MainLayout>
   )
 }

@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { InvoiceSheet } from "@/components/invoice-sheet"
-import { Plus, Search, Filter, X, Calendar, Edit, Edit3 } from "lucide-react"
+import { InvoiceSheet } from "@/components/expense-sheet"
+import { Plus, Search, Filter, X, Calendar, Edit, Edit3, Trash2 } from "lucide-react"
 import { type Division, type Category, type Subcategory, type PIC } from "@/lib/supabase"
 import { formatWIBDate } from "@/lib/timezone"
 import useCustomToast from "@/lib/use-toast"
@@ -132,6 +132,29 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
     setEditingExpense(null)
     fetchInvoices() // Refresh the list
     success("Invoice Berhasil Diupdate", "Data invoice telah diperbarui")
+  }
+
+  // Delete handler
+  const handleDeleteInvoice = async (invoice: any) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus invoice "${invoice.title}"?\n\nTindakan ini tidak dapat dibatalkan.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/expenses/${invoice.id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        success("Invoice Berhasil Dihapus", `Invoice ${invoice.title} telah dihapus`)
+        fetchInvoices() // Refresh the list
+      } else {
+        const data = await response.json()
+        showError('Gagal Menghapus Invoice', data.error || 'Terjadi kesalahan saat menghapus invoice')
+      }
+    } catch (error) {
+      showError('Terjadi Kesalahan', 'Silakan coba lagi atau hubungi administrator')
+    }
   }
 
   const filterExpenses = (expenses: any[], filters: FilterState): any[] => {
@@ -290,7 +313,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
   if (isLoading) {
     return (
       <Card>
-        <CardContent className="p-6">
+        <CardContent>
           <div className="text-center text-gray-500">Memuat data...</div>
         </CardContent>
       </Card>
@@ -301,7 +324,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
     <div className="space-y-4">
       {/* Filter */}
       <Card>
-        <CardHeader className="pb-4">
+        <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <Filter className="h-5 w-5" />
@@ -321,11 +344,11 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="-mt-4">
             {/* Filter Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {/* Search */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label className="text-xs font-medium text-gray-700">Cari</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
@@ -339,7 +362,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
               </div>
 
               {/* Division */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label htmlFor="division" className="text-xs font-medium text-gray-700">Divisi</Label>
                 <Select
                   value={filters.divisionId}
@@ -360,7 +383,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
               </div>
 
               {/* Category */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label htmlFor="category" className="text-xs font-medium text-gray-700">Kategori</Label>
                 <Select
                   value={filters.categoryId}
@@ -381,7 +404,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
               </div>
 
               {/* Subcategory */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label htmlFor="subcategory" className="text-xs font-medium text-gray-700">Sub Kategori</Label>
                 <Select
                   value={filters.subcategoryId}
@@ -403,7 +426,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
               </div>
 
               {/* PIC */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label htmlFor="pic" className="text-xs font-medium text-gray-700">PIC</Label>
                 <Select
                   value={filters.picId}
@@ -424,7 +447,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
               </div>
 
               {/* Date Range */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label className="text-xs font-medium text-gray-700">Tanggal</Label>
                 <Popover open={dateRangeOpen} onOpenChange={setDateRangeOpen}>
                   <PopoverTrigger asChild>
@@ -638,7 +661,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            📦 {(() => {
+                            {(() => {
                               try {
                                 const details = typeof invoice.details === 'string'
                                   ? JSON.parse(invoice.details)
@@ -656,15 +679,26 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                           </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditInvoice(invoice)}
-                            className="h-8 px-3 text-xs"
-                          >
-                            <Edit className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
+                          <div className="flex items-center gap-2 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditInvoice(invoice)}
+                              className="h-8 px-3 text-xs"
+                            >
+                              <Edit className="h-3 w-3 mr-1" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteInvoice(invoice)}
+                              className="h-8 px-3 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Hapus
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}

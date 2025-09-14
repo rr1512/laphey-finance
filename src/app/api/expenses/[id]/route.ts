@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { convertToWIBISO } from '@/lib/timezone'
+import { AuthService } from '@/lib/auth'
 
 // GET - Get single expense
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // Check authentication
+    const accessToken = request.cookies.get('accessToken')?.value
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Token tidak ditemukan' },
+        { status: 401 }
+      )
+    }
+
+    // Verify token
+    const decoded = AuthService.verifyToken(accessToken)
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Token tidak valid' },
+        { status: 401 }
+      )
+    }
     const { id } = params
 
     if (!id) {
@@ -43,6 +61,24 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 // PUT - Update expense
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // Check authentication
+    const accessToken = request.cookies.get('accessToken')?.value
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Token tidak ditemukan' },
+        { status: 401 }
+      )
+    }
+
+    // Verify token
+    const decoded = AuthService.verifyToken(accessToken)
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Token tidak valid' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
 
     if (!id) {
@@ -122,6 +158,24 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 // DELETE - Delete expense
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // Check authentication
+    const accessToken = request.cookies.get('accessToken')?.value
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Token tidak ditemukan' },
+        { status: 401 }
+      )
+    }
+
+    // Verify token
+    const decoded = AuthService.verifyToken(accessToken)
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Token tidak valid' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
 
     if (!id) {

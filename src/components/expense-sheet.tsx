@@ -55,6 +55,54 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
     { item: "", qty: "", unit: "", pricePerUnit: "", description: "", subTotal: 0 }
   ])
 
+  // State untuk formatted price display
+  const [priceDisplays, setPriceDisplays] = useState<{ [key: number]: string }>({})
+
+  // State untuk keterangan invoice (terpisah dari expenseRef)
+  const [invoiceNotes, setInvoiceNotes] = useState("")
+
+  // Format number with thousand separator
+  const formatNumber = (value: string) => {
+    // Remove all non-numeric characters
+    const numericValue = value.replace(/[^0-9]/g, '')
+    // Add thousand separators
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  }
+
+  // Parse formatted number back to numeric value
+  const parseNumber = (formattedValue: string) => {
+    return formattedValue.replace(/,/g, '')
+  }
+
+  // Handle price input change with formatting
+  const handlePriceChange = (index: number, value: string) => {
+    const formattedValue = formatNumber(value)
+    const numericValue = parseNumber(formattedValue)
+
+    // Update display state
+    setPriceDisplays(prev => ({
+      ...prev,
+      [index]: formattedValue
+    }))
+
+    // Update actual expense data
+    const updatedExpenses = [...expenses]
+    updatedExpenses[index].pricePerUnit = numericValue
+    updatedExpenses[index].subTotal = parseFloat(updatedExpenses[index].qty || '0') * parseFloat(numericValue || '0')
+    setExpenses(updatedExpenses)
+  }
+
+  // Initialize price displays
+  useEffect(() => {
+    const initialDisplays: { [key: number]: string } = {}
+    expenses.forEach((expense, index) => {
+      if (expense.pricePerUnit) {
+        initialDisplays[index] = formatNumber(expense.pricePerUnit)
+      }
+    })
+    setPriceDisplays(initialDisplays)
+  }, [expenses])
+
   // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
@@ -63,12 +111,12 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
           fetch('/api/divisions'),
           fetch('/api/categories')
         ])
-        
+
         if (divisionsRes.ok) {
           const divisionsData = await divisionsRes.json()
           setDivisions(divisionsData)
         }
-        
+
         if (categoriesRes.ok) {
           const categoriesData = await categoriesRes.json()
           setCategories(categoriesData)
@@ -144,21 +192,52 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
       setExpenseDate(localDateTime)
 
       setExpenseRef(editInvoice.ref || "")
-      setBatchName(editInvoice.notes || "")
+      setInvoiceNotes(editInvoice.notes || "")
+      setBatchName(editInvoice.title || "")
 
-      // Check if this is batch edit (has expenses array) or single expense edit
-      if (editInvoice.items && Array.isArray(editInvoice.items)) {
-        // Invoice edit - populate with invoice items
-        setExpenses(editInvoice.items.map((item: any) => ({
-          item: item.item || "",
-          qty: item.qty?.toString() || "",
-          unit: item.unit || "",
-          pricePerUnit: item.price_per_unit?.toString() || "",
-          description: item.description || "",
-          subTotal: item.amount || 0
-        })))
+      // Check if this is expense edit with details (JSONB array)
+      if (editInvoice.details) {
+        try {
+          // Parse JSONB details if it's a string
+          const details = typeof editInvoice.details === 'string'
+            ? JSON.parse(editInvoice.details)
+            : editInvoice.details
+
+          if (Array.isArray(details) && details.length > 0) {
+            // Expense edit - populate with expense details
+            setExpenses(details.map((item: any) => ({
+              item: item.item || "",
+              qty: item.qty?.toString() || "",
+              unit: item.unit || "",
+              pricePerUnit: item.price_per_unit?.toString() || "",
+              description: item.description || "",
+              subTotal: item.amount || 0
+            })))
+          } else {
+            // Empty details - single empty item
+            setExpenses([{
+              item: "",
+              qty: "",
+              unit: "",
+              pricePerUnit: "",
+              description: "",
+              subTotal: 0
+            }])
+          }
+        } catch (error) {
+          console.error('Error parsing expense details:', error)
+          // Fallback - single empty item
+          setExpenses([{
+            item: "",
+            qty: "",
+            unit: "",
+            pricePerUnit: "",
+            description: "",
+            subTotal: 0
+          }])
+        }
       } else {
-        // Fallback - single item
+        // Fallback - single empty item for new expenses
         setExpenses([{
           item: "",
           qty: "",
@@ -174,6 +253,19 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
     }
   }, [editInvoice, isEditMode])
 
+  // Initialize price displays when expenses change (for edit mode)
+  useEffect(() => {
+    if (isEditMode && expenses.length > 0) {
+      const initialDisplays: { [key: number]: string } = {}
+      expenses.forEach((expense, index) => {
+        if (expense.pricePerUnit) {
+          initialDisplays[index] = formatNumber(expense.pricePerUnit)
+        }
+      })
+      setPriceDisplays(initialDisplays)
+    }
+  }, [expenses, isEditMode])
+
 
   // Reset form when sheet closes
   const resetForm = () => {
@@ -184,9 +276,11 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
     setExpenseDate(() => getWIBDateTimeLocal())
     setExpenseRef("")
     setBatchName("")
+    setInvoiceNotes("")
     setExpenses([
       { item: "", qty: "", unit: "", pricePerUnit: "", description: "", subTotal: 0 }
     ])
+    setPriceDisplays({})
   }
 
 
@@ -214,8 +308,8 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
     try {
       if (isEditMode && editInvoice) {
-        // Invoice edit - update invoice and its items
-        const response = await fetch(`/api/invoices/${editInvoice.id}`, {
+        // Expense edit - update expense and its details
+        const response = await fetch(`/api/expenses/${editInvoice.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -226,12 +320,15 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
             category_id: categoryId,
             subcategory_id: subcategoryId,
             date: expenseDate,
-            notes: batchName || null,
-            items: validExpenses.map(exp => ({
+            reference: expenseRef || null,
+            notes: invoiceNotes || null,
+            title: batchName || null,
+            details: validExpenses.map(exp => ({
               item: exp.item,
-              qty: exp.qty,
+              qty: parseFloat(exp.qty),
               unit: exp.unit,
-              price_per_unit: exp.pricePerUnit,
+              price_per_unit: parseFloat(exp.pricePerUnit),
+              amount: exp.subTotal,
               description: exp.description?.trim() || ''
             }))
           })
@@ -239,16 +336,16 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('Error updating invoice:', errorData.error)
-          showError("Gagal Mengupdate Invoice", "Terjadi kesalahan saat mengupdate invoice")
+          console.error('Error updating expense:', errorData.error)
+          showError("Gagal Mengupdate Expense", "Terjadi kesalahan saat mengupdate expense")
           return
         }
 
-        success("Invoice Berhasil Diupdate", `${editInvoice.invoice_number} berhasil diupdate`)
+        success("Expense Berhasil Diupdate", `${editInvoice.expense_number || editInvoice.invoice_number} berhasil diupdate`)
         onInvoiceUpdated?.()
       } else {
-        // Add mode - create new invoice
-        const response = await fetch('/api/invoices', {
+        // Add mode - create new expense
+        const response = await fetch('/api/expenses', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -259,12 +356,15 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
             category_id: categoryId,
             subcategory_id: subcategoryId,
             date: expenseDate,
-            notes: batchName || null,
-            items: validExpenses.map(exp => ({
+            reference: expenseRef || null,
+            notes: invoiceNotes || null,
+            title: batchName || null,
+            details: validExpenses.map(exp => ({
               item: exp.item,
-              qty: exp.qty,
+              qty: parseFloat(exp.qty),
               unit: exp.unit,
-              price_per_unit: exp.pricePerUnit,
+              price_per_unit: parseFloat(exp.pricePerUnit),
+              amount: exp.subTotal,
               description: exp.description?.trim() || ''
             }))
           })
@@ -272,14 +372,14 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('Error creating invoice:', errorData.error)
-          showError("Gagal Membuat Invoice", "Terjadi kesalahan saat membuat invoice")
+          console.error('Error creating expense:', errorData.error)
+          showError("Gagal Membuat Expense", "Terjadi kesalahan saat membuat expense")
           return
         }
 
         const result = await response.json()
-        console.log('Invoice create result:', result)
-        success("Invoice Berhasil Dibuat", `Invoice ${result.invoice_number} berhasil dibuat dengan ${validExpenses.length} item`)
+        console.log('Expense create result:', result)
+        success("Expense Berhasil Dibuat", `Expense ${result.expense_number} berhasil dibuat dengan ${validExpenses.length} item`)
         onInvoiceAdded?.()
       }
 
@@ -295,7 +395,17 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
   }
 
   const addExpenseRow = () => {
-    setExpenses([...expenses, { item: "", qty: "", unit: "", pricePerUnit: "", description: "", subTotal: 0 }])
+    const newExpenses = [...expenses, { item: "", qty: "", unit: "", pricePerUnit: "", description: "", subTotal: 0 }]
+    setExpenses(newExpenses)
+
+    // Auto-focus to first input of new row after a short delay
+    setTimeout(() => {
+      const newIndex = newExpenses.length - 1
+      const newInput = document.getElementById(`item-${newIndex}`)
+      if (newInput) {
+        newInput.focus()
+      }
+    }, 100)
   }
 
   const removeExpenseRow = (index: number) => {
@@ -304,22 +414,29 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number, field: keyof InvoiceItem) => {
+    if (e.key === 'Enter') {
+      e.preventDefault() // Prevent form submission
+      addExpenseRow()
+    }
+  }
+
   const updateExpense = (index: number, field: keyof InvoiceItem, value: string | number) => {
     const updatedExpenses = [...expenses]
-    
+
     if (field === 'subTotal') {
       updatedExpenses[index][field] = value as number
     } else {
       (updatedExpenses[index] as any)[field] = value
     }
-    
+
     // Calculate sub total when qty or pricePerUnit changes
-    if (field === 'qty' || field === 'pricePerUnit') {
-      const qty = parseFloat(field === 'qty' ? value as string : updatedExpenses[index].qty) || 0
-      const pricePerUnit = parseFloat(field === 'pricePerUnit' ? value as string : updatedExpenses[index].pricePerUnit) || 0
+    if (field === 'qty') {
+      const qty = parseFloat(value as string) || 0
+      const pricePerUnit = parseFloat(updatedExpenses[index].pricePerUnit) || 0
       updatedExpenses[index].subTotal = qty * pricePerUnit
     }
-    
+
     setExpenses(updatedExpenses)
   }
 
@@ -356,166 +473,136 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
         </SheetHeader>
 
         <div className="space-y-10">
-          {/* Two Box Layout with 2:1 ratio */}
-          <div className="grid grid-cols-3 gap-6">
-            {/* Box 1: Informasi Umum - Takes 2/3 width */}
-            <div className="col-span-2 space-y-6 p-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <h3 className="text-lg font-semibold text-gray-900">Informasi Umum</h3>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Row 1: Divisi & PIC */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="text-sm font-semibold text-gray-700">Divisi *</div>
-                    <Select value={divisionId} onValueChange={setDivisionId}>
-                      <SelectTrigger className="h-11 w-full">
-                        <SelectValue placeholder="Pilih divisi" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {divisions.map((division) => (
-                          <SelectItem key={division.id} value={division.id}>
-                            {division.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-sm font-semibold text-gray-700">PIC *</div>
-                    <Select value={picId} onValueChange={setPicId} disabled={!divisionId}>
-                      <SelectTrigger className="h-11 w-full">
-                        <SelectValue placeholder="Pilih PIC" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {pics.map((pic) => (
-                          <SelectItem key={pic.id} value={pic.id}>
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-gray-400" />
-                              <div>
-                                <div className="font-medium">{pic.name}</div>
-                                <div className="text-xs text-gray-500">{pic.position} • {pic.phone}</div>
-                              </div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Row 2: Kategori & Sub Kategori */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="text-sm font-semibold text-gray-700">Kategori *</div>
-                    <Select value={categoryId} onValueChange={setCategoryId}>
-                      <SelectTrigger className="h-11 w-full">
-                        <SelectValue placeholder="Pilih kategori" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            <div className="flex items-center gap-2">
-                              <div 
-                                className="w-3 h-3 rounded-full" 
-                                style={{ backgroundColor: category.color }}
-                              />
-                              {category.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-sm font-semibold text-gray-700">Sub Kategori *</div>
-                    <Select value={subcategoryId} onValueChange={setSubcategoryId} disabled={!categoryId}>
-                      <SelectTrigger className="h-11 w-full">
-                        <SelectValue placeholder="Pilih sub kategori" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subcategories.map((subcategory) => (
-                          <SelectItem key={subcategory.id} value={subcategory.id}>
-                            {subcategory.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
+          {/* Single Box: All Fields in One Row */}
+          <div className="space-y-6 p-8 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <h3 className="text-lg font-semibold text-gray-900">Detail Invoice</h3>
             </div>
 
-            {/* Box 2: Tanggal & Referensi - Takes 1/3 width */}
-            <div className="space-y-6 p-8 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <h3 className="text-lg font-semibold text-gray-900">Tanggal & Referensi</h3>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Header */}
-                <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-4">
+              {/* Single Row: All 6 Fields */}
+              <div className="grid grid-cols-6 gap-4">
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">Divisi *</div>
+                  <Select value={divisionId} onValueChange={setDivisionId}>
+                    <SelectTrigger className="w-full bg-white border border-gray-300 rounded-md px-3">
+                      <SelectValue placeholder="Pilih divisi" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {divisions.map((division) => (
+                        <SelectItem key={division.id} value={division.id}>
+                          {division.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">PIC *</div>
+                  <Select value={picId} onValueChange={setPicId} disabled={!divisionId}>
+                    <SelectTrigger className="w-full bg-white border border-gray-300 rounded-md px-3">
+                      <SelectValue placeholder="Pilih PIC" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pics.map((pic) => (
+                        <SelectItem key={pic.id} value={pic.id}>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-gray-400" />
+                            <div>
+                              <div className="font-medium">{pic.name}</div>
+                              <div className="text-xs text-gray-500">{pic.position}</div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">Kategori *</div>
+                  <Select value={categoryId} onValueChange={setCategoryId}>
+                    <SelectTrigger className=" w-full bg-white border border-gray-300 rounded-md px-3">
+                      <SelectValue placeholder="Pilih kategori" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: category.color }}
+                            />
+                            {category.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">Sub Kategori *</div>
+                  <Select value={subcategoryId} onValueChange={setSubcategoryId} disabled={!categoryId}>
+                    <SelectTrigger className=" w-full bg-white border border-gray-300 rounded-md px-3">
+                      <SelectValue placeholder="Pilih sub kategori" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subcategories.map((subcategory) => (
+                        <SelectItem key={subcategory.id} value={subcategory.id}>
+                          {subcategory.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <div className="text-sm font-semibold text-gray-700">Tanggal & Waktu</div>
-                </div>
-                
-                {/* Data Row */}
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <Input
-                      type="datetime-local"
-                      value={expenseDate}
-                      onChange={(e) => setExpenseDate(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
+                  <Input
+                    type="datetime-local"
+                    value={expenseDate}
+                    onChange={(e) => setExpenseDate(e.target.value)}
+                      className="bg-white border border-gray-300 rounded-md px-3"
+                  />
                 </div>
 
-                {/* Header Row 2 */}
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="text-sm font-semibold text-gray-700">Referensi (Opsional)</div>
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">Referensi</div>
+                  <Input
+                    type="text"
+                    placeholder="INV-001, PO-123"
+                    value={expenseRef}
+                    onChange={(e) => setExpenseRef(e.target.value)}
+                      className="bg-white border border-gray-300 rounded-md px-3"
+                  />
                 </div>
+              </div>
 
-                {/* Data Row 2 */}
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <Input
-                      type="text"
-                      placeholder="INV-001, PO-123, dll"
-                      value={expenseRef}
-                      onChange={(e) => setExpenseRef(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
+              {/* Judul dan Keterangan */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">Judul Invoice *</div>
+                  <Input
+                    type="text"
+                    placeholder="Masukkan judul invoice..."
+                    value={batchName}
+                    onChange={(e) => setBatchName(e.target.value)}
+                    className="bg-white border border-gray-300 rounded-md px-3"
+                  />
                 </div>
-
-                {/* Header Row 3 - Only show when multiple expenses */}
-                {expenses.length > 1 && (
-                  <>
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="text-sm font-semibold text-gray-700">
-                        Judul Batch *
-                      </div>
-                    </div>
-
-                    {/* Data Row 3 */}
-                    <div className="grid grid-cols-1 gap-4">
-                      <div>
-                        <Input
-                          type="text"
-                          placeholder="Masukkan judul batch pengeluaran..."
-                          value={batchName}
-                          onChange={(e) => setBatchName(e.target.value)}
-                          className="h-11"
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">Keterangan (Opsional)</div>
+                  <Input
+                    type="text"
+                    placeholder="Tambahkan catatan atau keterangan..."
+                    value={invoiceNotes}
+                    onChange={(e) => setInvoiceNotes(e.target.value)}
+                    className="bg-white border border-gray-300 rounded-md px-3"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -541,20 +628,24 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                     </Button>
                   </div>
 
-                <div className="space-y-6">
+                <div className="space-y-3">
                   {/* Header */}
-                  <div className="grid grid-cols-6 gap-4">
+                  <div className="grid gap-3" style={{ gridTemplateColumns: '0.3fr 2.5fr 0.5fr 0.5fr 0.8fr 1fr 1.4fr' }}>
+                    <div className="text-sm font-semibold text-gray-700 text-center">#</div>
                     <div className="text-sm font-semibold text-gray-700">Item</div>
-                    <div className="text-sm font-semibold text-gray-700">QTY</div>
-                    <div className="text-sm font-semibold text-gray-700">Unit</div>
-                    <div className="text-sm font-semibold text-gray-700">Price @</div>
-                    <div className="text-sm font-semibold text-gray-700">Keterangan (Opsional)</div>
-                    <div className="text-sm font-semibold text-gray-700">Sub Total</div>
+                    <div className="text-sm font-semibold text-gray-700 text-center">QTY</div>
+                    <div className="text-sm font-semibold text-gray-700 text-center">Unit</div>
+                    <div className="text-sm font-semibold text-gray-700 text-center">Price @</div>
+                    <div className="text-sm font-semibold text-gray-700">Keterangan</div>
+                    <div className="text-sm font-semibold text-gray-700 text-center">Sub Total</div>
                   </div>
                   
                   {/* Data Rows */}
                   {expenses.map((expense, index) => (
-                    <div key={index} className="grid grid-cols-6 gap-4 items-center">
+                    <div key={index} className="grid gap-3 items-center" style={{ gridTemplateColumns: '0.3fr 2.5fr 0.5fr 0.5fr 0.8fr 1fr 1.4fr' }}>
+                      <div className="flex items-center justify-center">
+                        <span className="text-sm font-medium text-gray-600">{index + 1}</span>
+                      </div>
                       <div>
                         <Input
                           id={`item-${index}`}
@@ -562,10 +653,11 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                           placeholder="Pulpen"
                           value={expense.item}
                           onChange={(e) => updateExpense(index, 'item', e.target.value)}
-                          className="h-11"
+                          onKeyDown={(e) => handleKeyDown(e, index, 'item')}
+                          className="bg-white border border-gray-300 rounded-md px-3"
                         />
                       </div>
-                      
+
                       <div>
                         <Input
                           id={`qty-${index}`}
@@ -573,12 +665,13 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                           placeholder="5"
                           value={expense.qty}
                           onChange={(e) => updateExpense(index, 'qty', e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, index, 'qty')}
                           min="0"
-                          step="0.01"
-                          className="h-11"
+                          step="1"
+                          className="bg-white border border-gray-300 rounded-md px-3 text-center"
                         />
                       </div>
-                      
+
                       <div>
                         <Input
                           id={`unit-${index}`}
@@ -586,23 +679,23 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                           placeholder="pcs"
                           value={expense.unit}
                           onChange={(e) => updateExpense(index, 'unit', e.target.value)}
-                          className="h-11"
+                          onKeyDown={(e) => handleKeyDown(e, index, 'unit')}
+                          className="bg-white border border-gray-300 rounded-md px-3 text-center"
                         />
                       </div>
-                      
+
                       <div>
                         <Input
                           id={`pricePerUnit-${index}`}
-                          type="number"
-                          placeholder="10000"
-                          value={expense.pricePerUnit}
-                          onChange={(e) => updateExpense(index, 'pricePerUnit', e.target.value)}
-                          min="0"
-                          step="0.01"
-                          className="h-11"
+                          type="text"
+                          placeholder="10,000"
+                          value={priceDisplays[index] || formatNumber(expense.pricePerUnit)}
+                          onChange={(e) => handlePriceChange(index, e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, index, 'pricePerUnit')}
+                          className="bg-white border border-gray-300 rounded-md px-3 text-center"
                         />
                       </div>
-                      
+
                       <div>
                         <Input
                           id={`description-${index}`}
@@ -610,14 +703,15 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                           placeholder="ATK rapat"
                           value={expense.description}
                           onChange={(e) => updateExpense(index, 'description', e.target.value)}
-                          className="h-11"
+                          onKeyDown={(e) => handleKeyDown(e, index, 'description')}
+                          className="bg-white border border-gray-300 rounded-md px-3"
                         />
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 h-11 flex items-center justify-center bg-gray-50 border border-gray-200 rounded-md px-3">
+                        <div className="flex-1 h-[42px] flex items-center justify-center bg-gray-50 border border-gray-200 rounded-md px-3">
                           <span className="text-sm font-semibold text-gray-700">
-                            {expense.qty && expense.pricePerUnit ? 
+                            {expense.qty && expense.pricePerUnit ?
                               new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(expense.subTotal)
                               : 'Rp 0'
                             }
@@ -629,7 +723,7 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                             variant="outline"
                             size="sm"
                             onClick={() => removeExpenseRow(index)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 h-11 w-11 p-0"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 h-[42px] w-11 p-0"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -642,7 +736,7 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
                 {/* Total */}
                 {totalBulkAmount > 0 && (
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-8">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-8">
                     <div className="text-center">
                     <span className="text-sm font-medium text-blue-800">Total Pengeluaran: </span>
                     <span className="text-2xl font-bold text-blue-600">

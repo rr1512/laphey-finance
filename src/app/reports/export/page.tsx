@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { DashboardLayout } from "@/components/dashboard-layout"
+import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -284,7 +284,7 @@ export default function ExportReportPage() {
   }
 
   return (
-    <DashboardLayout>
+    <MainLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -618,6 +618,6 @@ export default function ExportReportPage() {
           }
         }
       `}</style>
-    </DashboardLayout>
+    </MainLayout>
   )
 }

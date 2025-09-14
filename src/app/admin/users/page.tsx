@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Users, Plus, Edit, Trash2, Shield, User as UserIcon, AlertTriangle } from "lucide-react"
+import { Users, Plus, Edit, Trash2, Shield, User as UserIcon, AlertTriangle, Key } from "lucide-react"
 import useCustomToast from "@/lib/use-toast"
 
 interface User {
@@ -27,12 +27,21 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     name: '',
     role: 'administrator' as 'superadmin' | 'administrator'
+  })
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    email: ''
+  })
+  const [resetPasswordFormData, setResetPasswordFormData] = useState({
+    newPassword: '',
+    confirmPassword: ''
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { success, error: showError } = useCustomToast() as any
@@ -133,6 +142,103 @@ export default function UsersPage() {
     }
   }
 
+  // Open edit dialog and set form data
+  const openEditDialog = (user: User) => {
+    setSelectedUser(user)
+    setEditFormData({
+      name: user.name,
+      email: user.email
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  // Edit user
+  const editUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedUser) return
+
+    setIsSubmitting(true)
+
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          ...editFormData
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        success('User Berhasil Diperbarui', `Data ${editFormData.name} telah diperbarui`)
+        setIsEditDialogOpen(false)
+        setSelectedUser(null)
+        fetchUsers()
+      } else {
+        showError('Gagal Memperbarui User', data.error || 'Terjadi kesalahan saat memperbarui user')
+      }
+    } catch (error) {
+      showError('Terjadi Kesalahan', 'Silakan coba lagi atau hubungi administrator')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Open reset password dialog
+  const openResetPasswordDialog = (user: User) => {
+    setSelectedUser(user)
+    setResetPasswordFormData({
+      newPassword: '',
+      confirmPassword: ''
+    })
+    setIsResetPasswordDialogOpen(true)
+  }
+
+  // Reset user password
+  const resetUserPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedUser) return
+
+    if (resetPasswordFormData.newPassword !== resetPasswordFormData.confirmPassword) {
+      showError('Password Tidak Cocok', 'Password baru dan konfirmasi harus sama')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const response = await fetch('/api/admin/users/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          newPassword: resetPasswordFormData.newPassword
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        success('Password Berhasil Direset', `Password ${selectedUser.name} telah direset`)
+        setIsResetPasswordDialogOpen(false)
+        setSelectedUser(null)
+        setResetPasswordFormData({ newPassword: '', confirmPassword: '' })
+      } else {
+        showError('Gagal Reset Password', data.error || 'Terjadi kesalahan saat reset password')
+      }
+    } catch (error) {
+      showError('Terjadi Kesalahan', 'Silakan coba lagi atau hubungi administrator')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   useEffect(() => {
     fetchUsers()
   }, [])
@@ -173,7 +279,7 @@ export default function UsersPage() {
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+            <Button className="bg-slate-700 hover:bg-slate-800">
               <Plus className="h-4 w-4 mr-2" />
               Tambah User
             </Button>
@@ -249,6 +355,101 @@ export default function UsersPage() {
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? 'Menyimpan...' : 'Simpan'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>
+                Perbarui informasi user {selectedUser?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={editUser} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Nama Lengkap</Label>
+                <Input
+                  id="edit-name"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  placeholder="Masukkan nama lengkap"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  placeholder="Masukkan email"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Batal
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reset Password Dialog */}
+        <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reset Password</DialogTitle>
+              <DialogDescription>
+                Reset password untuk user {selectedUser?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={resetUserPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Password Baru</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={resetPasswordFormData.newPassword}
+                  onChange={(e) => setResetPasswordFormData({ ...resetPasswordFormData, newPassword: e.target.value })}
+                  placeholder="Masukkan password baru"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Konfirmasi Password Baru</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={resetPasswordFormData.confirmPassword}
+                  onChange={(e) => setResetPasswordFormData({ ...resetPasswordFormData, confirmPassword: e.target.value })}
+                  placeholder="Konfirmasi password baru"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsResetPasswordDialogOpen(false)}
+                >
+                  Batal
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Mereset...' : 'Reset Password'}
                 </Button>
               </div>
             </form>
@@ -335,6 +536,26 @@ export default function UsersPage() {
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditDialog(user)}
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          title="Edit User"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openResetPasswordDialog(user)}
+                          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          title="Reset Password"
+                        >
+                          <Key className="h-4 w-4" />
+                        </Button>
+
                         {user.role !== 'superadmin' && (
                           <>
                             <Select
@@ -356,6 +577,7 @@ export default function UsersPage() {
                               size="sm"
                               onClick={() => deleteUser(user.id)}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Hapus User"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { email, password } = loginSchema.parse(body)
 
-    // Get user from database
-    const dbUser = await AuthService.getUserByEmail(email)
+    // Get user from database with password
+    const dbUser = await AuthService.getUserByEmailWithPassword(email)
 
     if (!dbUser) {
       return NextResponse.json(
@@ -23,9 +23,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // For demo purposes, check simple password (in production use hashed passwords)
-    // You can update this to use bcrypt.compare for hashed passwords
-    const isValidPassword = password === 'SuperAdmin123!' || password === 'Admin123!'
+    // Verify password using bcrypt
+    const isValidPassword = await AuthService.verifyPassword(password, dbUser.password)
 
     if (!isValidPassword) {
       return NextResponse.json(
@@ -40,8 +39,8 @@ export async function POST(request: NextRequest) {
       email: dbUser.email,
       name: dbUser.name,
       role: dbUser.role,
-      createdAt: dbUser.createdAt || new Date().toISOString(),
-      updatedAt: dbUser.updatedAt || new Date().toISOString()
+      createdAt: dbUser.created_at || new Date().toISOString(),
+      updatedAt: dbUser.updated_at || new Date().toISOString()
     }
 
     // Generate tokens
@@ -64,14 +63,15 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 // 1 hour
+      maxAge: 60 * 60 * 24 * 7 // 7 days
     })
 
-    response.cookies.set('refreshToken', tokens.refreshToken, {
+    // Remove refresh token cookie (not used anymore)
+    response.cookies.set('refreshToken', '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7 // 7 days
+      maxAge: 0 // Expire immediately
     })
 
     return response

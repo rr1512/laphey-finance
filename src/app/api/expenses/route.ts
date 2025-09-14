@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { convertToWIBISO } from '@/lib/timezone'
+import { AuthService } from '@/lib/auth'
 
 // GET - Fetch all expenses
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Check authentication
+    const accessToken = request.cookies.get('accessToken')?.value
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Token tidak ditemukan' },
+        { status: 401 }
+      )
+    }
+
+    // Verify token
+    const decoded = AuthService.verifyToken(accessToken)
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Token tidak valid' },
+        { status: 401 }
+      )
+    }
     const { data, error } = await supabaseServer
       .from('expenses')
       .select(`
@@ -32,6 +50,24 @@ export async function GET() {
 // POST - Create new expense
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const accessToken = request.cookies.get('accessToken')?.value
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Token tidak ditemukan' },
+        { status: 401 }
+      )
+    }
+
+    // Verify token
+    const decoded = AuthService.verifyToken(accessToken)
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Token tidak valid' },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const {
       // New format fields (preferred)

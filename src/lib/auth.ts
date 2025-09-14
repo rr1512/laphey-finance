@@ -13,7 +13,7 @@ export interface User {
 
 export interface AuthTokens {
   accessToken: string
-  refreshToken: string
+  refreshToken?: string // Optional, not used anymore
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production'
@@ -40,9 +40,10 @@ export class AuthService {
         type: 'access'
       },
       JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '7d' } // Changed to 7 days
     )
 
+    // Refresh token not used anymore, but keep for compatibility
     const refreshToken = jwt.sign(
       {
         userId: user.id,
@@ -73,37 +74,57 @@ export class AuthService {
     }
   }
 
-  // Get user by email
-  static async getUserByEmail(email: string): Promise<User | null> {
-    try {
-      const { data, error } = await supabaseServer
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single()
+// Get user by email (for authentication - includes password)
+static async getUserByEmail(email: string): Promise<User | null> {
+  try {
+    const { data, error } = await supabaseServer
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single()
 
-      if (error || !data) {
-        return null
-      }
-
-      return {
-        id: data.id,
-        email: data.email,
-        name: data.name,
-        role: data.role,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at
-      }
-    } catch (error) {
-      console.error('Error getting user by email:', error)
+    if (error || !data) {
       return null
     }
+
+    return {
+      id: data.id,
+      email: data.email,
+      name: data.name,
+      role: data.role,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    }
+  } catch (error) {
+    console.error('Error getting user by email:', error)
+    return null
   }
+}
+
+// Get user by email with password (internal use only)
+static async getUserByEmailWithPassword(email: string): Promise<any> {
+  try {
+    const { data, error } = await supabaseServer
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single()
+
+    if (error || !data) {
+      return null
+    }
+
+    return data // Return full data including password
+  } catch (error) {
+    console.error('Error getting user by email with password:', error)
+    return null
+  }
+}
 
   // Create user (for superadmin)
   static async createUser(email: string, password: string, name: string, role: 'superadmin' | 'administrator' = 'administrator'): Promise<User | null> {
     try {
-      const hashedPassword = await this.hashPassword(password)
+      const hashedPassword = await AuthService.hashPassword(password)
 
       const { data, error } = await supabaseServer
         .from('users')
@@ -201,20 +222,150 @@ export class AuthService {
       return false
     }
   }
-}
 
-// Default users to create on first run
-export const DEFAULT_USERS = [
-  {
-    email: 'superadmin@laphey.com',
-    password: 'SuperAdmin123!',
-    name: 'Super Administrator',
-    role: 'superadmin' as const
-  },
-  {
-    email: 'admin@laphey.com',
-    password: 'Admin123!',
-    name: 'Administrator',
-    role: 'administrator' as const
+  // Update user profile (for current user)
+  static async updateUserProfile(userId: string, updates: { name?: string; email?: string }): Promise<User | null> {
+    try {
+      const { data, error } = await supabaseServer
+        .from('users')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .select()
+        .single()
+
+      if (error || !data) {
+        console.error('Error updating user profile:', error)
+        return null
+      }
+
+      return {
+        id: data.id,
+        email: data.email,
+        name: data.name,
+        role: data.role,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      }
+    } catch (error) {
+      console.error('Error updating user profile:', error)
+      return null
+    }
   }
-]
+
+  // Update user profile (for admin)
+  static async updateUserProfileAdmin(userId: string, name: string, email: string): Promise<boolean> {
+    try {
+      console.log('updateUserProfile called with userId:', userId)
+
+      const { error: updateError } = await supabaseServer
+        .from('users')
+        .update({
+          name,
+          email,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+
+      if (updateError) {
+        console.error('Error updating user profile:', updateError)
+        return false
+      }
+
+      console.log('User profile updated successfully')
+      return true
+    } catch (error) {
+      console.error('Error updating user profile:', error)
+      return false
+    }
+  }
+
+  // Reset user password (for admin)
+  static async resetUserPassword(userId: string, newPassword: string): Promise<boolean> {
+    try {
+      console.log('resetUserPassword called with userId:', userId)
+
+      // Hash new password
+      const hashedPassword = await AuthService.hashPassword(newPassword)
+      console.log('New password hashed successfully')
+
+      // Update password
+      const { error: updateError } = await supabaseServer
+        .from('users')
+        .update({
+          password: hashedPassword,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+
+      if (updateError) {
+        console.error('Error updating password in database:', updateError)
+        return false
+      }
+
+      console.log('Password reset successfully in database')
+      return true
+    } catch (error) {
+      console.error('Error resetting user password:', error)
+      return false
+    }
+  }
+
+  // Change user password (for current user)
+  static async changeUserPassword(userId: string, currentPassword: string, newPassword: string): Promise<boolean> {
+    try {
+      console.log('changeUserPassword called with userId:', userId)
+
+      // First, get the current user data to verify current password
+      const { data: userData, error: fetchError } = await supabaseServer
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (fetchError || !userData) {
+        console.error('Error fetching user for password change:', fetchError)
+        return false
+      }
+
+      console.log('User data found:', { id: userData.id, email: userData.email, hasPassword: !!userData.password })
+
+      // Verify current password
+      const isCurrentPasswordValid = await AuthService.verifyPassword(currentPassword, userData.password)
+      console.log('Password verification result:', isCurrentPasswordValid)
+
+      if (!isCurrentPasswordValid) {
+        console.log('Current password verification failed - password does not match')
+        return false // Current password is incorrect
+      }
+
+      console.log('Password verification successful, hashing new password')
+
+      // Hash new password
+      const hashedNewPassword = await AuthService.hashPassword(newPassword)
+      console.log('New password hashed successfully')
+
+      // Update password
+      const { error: updateError } = await supabaseServer
+        .from('users')
+        .update({
+          password: hashedNewPassword,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+
+      if (updateError) {
+        console.error('Error updating password in database:', updateError)
+        return false
+      }
+
+      console.log('Password updated successfully in database')
+      return true
+    } catch (error) {
+      console.error('Error changing user password:', error)
+      return false
+    }
+  }
+}

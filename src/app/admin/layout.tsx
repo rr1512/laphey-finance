@@ -1,10 +1,10 @@
 import { MainLayout } from "@/components/layout/main-layout"
 
-interface DashboardLayoutProps {
+export default function AdminLayout({
+  children,
+}: {
   children: React.ReactNode
-}
-
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+}) {
   return (
     <MainLayout>
       {children}

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Menu, LogOut, User, Settings, ChevronDown } from "lucide-react"
@@ -21,6 +22,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick, title = "Dashboard" }: HeaderProps) {
   const { user, logout } = useAuth()
+  const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const { success } = useCustomToast() as any
 
@@ -71,7 +73,7 @@ export function Header({ onMenuClick, title = "Dashboard" }: HeaderProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center">
                 <User className="h-4 w-4 text-white" />
               </div>
               <div className="hidden sm:flex flex-col items-start">
@@ -89,13 +91,9 @@ export function Header({ onMenuClick, title = "Dashboard" }: HeaderProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/settings')}>
               <User className="mr-2 h-4 w-4" />
-              <span>Profile</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
+              <span>Pengaturan Profile</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
