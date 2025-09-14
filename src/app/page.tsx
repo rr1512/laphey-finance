@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { ExpenseSheet } from "@/components/expense-sheet"
+import { InvoiceSheet } from "@/components/invoice-sheet"
 import { Button } from "@/components/ui/button"
 import { Plus, TrendingUp, Receipt, Users } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 export default function Home() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  const handleExpenseAdded = () => {
+  const handleInvoiceAdded = () => {
     setRefreshTrigger(prev => prev + 1)
   }
 
@@ -29,13 +29,13 @@ export default function Home() {
               </p>
             </div>
             
-            {/* Add Expense Button */}
-            <ExpenseSheet onExpenseAdded={handleExpenseAdded}>
+            {/* Add Invoice Button */}
+            <InvoiceSheet onInvoiceAdded={handleInvoiceAdded}>
               <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg">
                 <Plus className="h-5 w-5 mr-2" />
-                Tambah Pengeluaran
+                Buat Invoice
               </Button>
-            </ExpenseSheet>
+            </InvoiceSheet>
           </div>
         </div>
 
@@ -45,7 +45,7 @@ export default function Home() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Pengeluaran</p>
+                  <p className="text-sm font-medium text-gray-600">Total Invoice</p>
                   <p className="text-2xl font-bold text-gray-900">Rp 0</p>
                 </div>
                 <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
@@ -59,7 +59,7 @@ export default function Home() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Transaksi</p>
+                  <p className="text-sm font-medium text-gray-600">Jumlah Invoice</p>
                   <p className="text-2xl font-bold text-gray-900">0</p>
                 </div>
                 <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">

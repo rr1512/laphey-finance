@@ -12,14 +12,15 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 interface ExpenseData {
   id: string
-  amount: number
+  expense_number: string
+  title: string
+  total_amount: number
   date: string
-  item: string
-  description: string
+  division?: { id: string; name: string }
   category?: { id: string; name: string }
   subcategory?: { id: string; name: string }
-  division?: { id: string; name: string }
   pic?: { id: string; name: string }
+  details?: any // JSONB array of expense items
 }
 
 interface ChartData {
@@ -148,7 +149,7 @@ export default function GraphicPage() {
       if (!acc[key]) {
         acc[key] = 0
       }
-      acc[key] += exp.amount
+      acc[key] += exp.total_amount
       return acc
     }, {} as Record<string, number>)
 
@@ -160,7 +161,7 @@ export default function GraphicPage() {
     }))
 
     setChartData(chartData)
-    setTotalAmount(filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0))
+    setTotalAmount(filteredExpenses.reduce((sum, exp) => sum + exp.total_amount, 0))
     setIsLoading(false)
   }
 
@@ -328,7 +329,7 @@ export default function GraphicPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Memuat grafik pengeluaran...</p>
+          <p className="mt-4 text-gray-600">Memuat grafik expense...</p>
         </div>
       </div>
     )
@@ -345,7 +346,7 @@ export default function GraphicPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-pink-100 font-medium">Total Pengeluaran</p>
+                  <p className="text-pink-100 font-medium">Total Expense</p>
                   <p className="text-3xl font-bold mt-1">{formatCurrency(totalAmount)}</p>
                 </div>
                 <div className="p-3 bg-white/20 rounded-full">
@@ -359,7 +360,7 @@ export default function GraphicPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-cyan-100 font-medium">Jumlah Transaksi</p>
+                  <p className="text-cyan-100 font-medium">Jumlah Expense</p>
                   <p className="text-3xl font-bold mt-1">{expenses.length}</p>
                 </div>
                 <div className="p-3 bg-white/20 rounded-full">
@@ -373,7 +374,7 @@ export default function GraphicPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-purple-100 font-medium">Kategori Aktif</p>
+                  <p className="text-purple-100 font-medium">Kategori Terpakai</p>
                   <p className="text-3xl font-bold mt-1">{chartData.length}</p>
                 </div>
                 <div className="p-3 bg-white/20 rounded-full">
@@ -507,7 +508,7 @@ export default function GraphicPage() {
                 <div className="p-2 bg-white/10 rounded-lg">
                   <BarChart3 className="h-5 w-5 text-white" />
                 </div>
-                <h3 className="text-lg font-semibold text-white">Visualisasi Pengeluaran</h3>
+                <h3 className="text-lg font-semibold text-white">Visualisasi Expense</h3>
               </div>
               <Badge
                 variant="outline"
@@ -526,7 +527,7 @@ export default function GraphicPage() {
               <div className="text-center py-12">
                 <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">Tidak ada data untuk ditampilkan</p>
-                <p className="text-sm text-gray-400 mt-2">Coba ubah filter atau pastikan ada data pengeluaran</p>
+                <p className="text-sm text-gray-400 mt-2">Coba ubah filter atau pastikan ada data expense</p>
               </div>
             )}
           </div>

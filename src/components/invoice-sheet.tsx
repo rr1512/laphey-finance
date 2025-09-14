@@ -12,6 +12,15 @@ import { type Division, type Category, type Subcategory, type PIC } from "@/lib/
 import { getWIBDateTimeLocal } from "@/lib/timezone"
 import useCustomToast from "@/lib/use-toast"
  
+interface ExpenseItem {
+  item: string
+  qty: string
+  unit: string
+  pricePerUnit: string
+  description: string
+  subTotal: number
+}
+
 interface InvoiceItem {
   item: string
   qty: string
@@ -50,8 +59,9 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
   // Form state
   const [expenseDate, setExpenseDate] = useState(() => getWIBDateTimeLocal())
   const [expenseRef, setExpenseRef] = useState("")
-  const [batchName, setBatchName] = useState("")
-  const [expenses, setExpenses] = useState<InvoiceItem[]>([
+  const [notes, setNotes] = useState("")
+  const [title, setTitle] = useState("")
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([
     { item: "", qty: "", unit: "", pricePerUnit: "", description: "", subTotal: 0 }
   ])
 
@@ -144,21 +154,52 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
       setExpenseDate(localDateTime)
 
       setExpenseRef(editInvoice.ref || "")
-      setBatchName(editInvoice.notes || "")
+      setNotes(editInvoice.notes || "")
+      setTitle(editInvoice.title || "")
 
-      // Check if this is batch edit (has expenses array) or single expense edit
-      if (editInvoice.items && Array.isArray(editInvoice.items)) {
-        // Invoice edit - populate with invoice items
-        setExpenses(editInvoice.items.map((item: any) => ({
-          item: item.item || "",
-          qty: item.qty?.toString() || "",
-          unit: item.unit || "",
-          pricePerUnit: item.price_per_unit?.toString() || "",
-          description: item.description || "",
-          subTotal: item.amount || 0
-        })))
+      // Check if this is expense edit with JSONB details
+      if (editInvoice.details) {
+        try {
+          // Parse JSONB details
+          const details = typeof editInvoice.details === 'string'
+            ? JSON.parse(editInvoice.details)
+            : editInvoice.details
+
+          if (Array.isArray(details) && details.length > 0) {
+            // Expense edit - populate with expense details
+            setExpenses(details.map((item: any) => ({
+              item: item.item || "",
+              qty: item.qty?.toString() || "",
+              unit: item.unit || "",
+              pricePerUnit: item.price_per_unit?.toString() || "",
+              description: item.description || "",
+              subTotal: item.amount || 0
+            })))
+          } else {
+            // Empty details - single empty item
+            setExpenses([{
+              item: "",
+              qty: "",
+              unit: "",
+              pricePerUnit: "",
+              description: "",
+              subTotal: 0
+            }])
+          }
+        } catch (error) {
+          console.error('Error parsing expense details:', error)
+          // Fallback - single empty item
+          setExpenses([{
+            item: "",
+            qty: "",
+            unit: "",
+            pricePerUnit: "",
+            description: "",
+            subTotal: 0
+          }])
+        }
       } else {
-        // Fallback - single item
+        // Fallback - single empty item for new expenses
         setExpenses([{
           item: "",
           qty: "",
@@ -183,7 +224,8 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
     setPicId("")
     setExpenseDate(() => getWIBDateTimeLocal())
     setExpenseRef("")
-    setBatchName("")
+    setNotes("")
+    setTitle("")
     setExpenses([
       { item: "", qty: "", unit: "", pricePerUnit: "", description: "", subTotal: 0 }
     ])
@@ -202,6 +244,11 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
       return
     }
 
+    if (!title.trim()) {
+      showError("Judul Belum Diisi", "Harap isi judul pengeluaran")
+      return
+    }
+
     if (!divisionId || !categoryId || !subcategoryId || !picId) {
       showError("Informasi Umum Belum Lengkap", "Harap isi semua field informasi umum")
       return
@@ -214,8 +261,8 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
     try {
       if (isEditMode && editInvoice) {
-        // Invoice edit - update invoice and its items
-        const response = await fetch(`/api/invoices/${editInvoice.id}`, {
+        // Expense edit - update expense with JSONB details
+        const response = await fetch(`/api/expenses/${editInvoice.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -226,12 +273,14 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
             category_id: categoryId,
             subcategory_id: subcategoryId,
             date: expenseDate,
-            notes: batchName || null,
-            items: validExpenses.map(exp => ({
+            title: title.trim(),
+            notes: notes.trim() || null,
+            details: validExpenses.map(exp => ({
               item: exp.item,
-              qty: exp.qty,
+              qty: parseFloat(exp.qty),
               unit: exp.unit,
-              price_per_unit: exp.pricePerUnit,
+              price_per_unit: parseFloat(exp.pricePerUnit),
+              amount: exp.subTotal,
               description: exp.description?.trim() || ''
             }))
           })
@@ -239,16 +288,16 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('Error updating invoice:', errorData.error)
-          showError("Gagal Mengupdate Invoice", "Terjadi kesalahan saat mengupdate invoice")
+          console.error('Error updating expense:', errorData.error)
+          showError("Gagal Mengupdate Expense", "Terjadi kesalahan saat mengupdate expense")
           return
         }
 
-        success("Invoice Berhasil Diupdate", `${editInvoice.invoice_number} berhasil diupdate`)
+        success("Expense Berhasil Diupdate", `${editInvoice.expense_number || editInvoice.invoice_number} berhasil diupdate`)
         onInvoiceUpdated?.()
       } else {
-        // Add mode - create new invoice
-        const response = await fetch('/api/invoices', {
+        // Add mode - create new expense
+        const response = await fetch('/api/expenses', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -259,12 +308,14 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
             category_id: categoryId,
             subcategory_id: subcategoryId,
             date: expenseDate,
-            notes: batchName || null,
-            items: validExpenses.map(exp => ({
+            title: title.trim(),
+            notes: notes.trim() || null,
+            details: validExpenses.map(exp => ({
               item: exp.item,
-              qty: exp.qty,
+              qty: parseFloat(exp.qty),
               unit: exp.unit,
-              price_per_unit: exp.pricePerUnit,
+              price_per_unit: parseFloat(exp.pricePerUnit),
+              amount: exp.subTotal,
               description: exp.description?.trim() || ''
             }))
           })
@@ -272,14 +323,14 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('Error creating invoice:', errorData.error)
-          showError("Gagal Membuat Invoice", "Terjadi kesalahan saat membuat invoice")
+          console.error('Error creating expense:', errorData.error)
+          showError("Gagal Membuat Expense", "Terjadi kesalahan saat membuat expense")
           return
         }
 
         const result = await response.json()
-        console.log('Invoice create result:', result)
-        success("Invoice Berhasil Dibuat", `Invoice ${result.invoice_number} berhasil dibuat dengan ${validExpenses.length} item`)
+        console.log('Expense create result:', result)
+        success("Expense Berhasil Dibuat", `Expense ${result.expense_number} berhasil dibuat dengan ${validExpenses.length} item`)
         onInvoiceAdded?.()
       }
 
@@ -304,7 +355,7 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
     }
   }
 
-  const updateExpense = (index: number, field: keyof InvoiceItem, value: string | number) => {
+  const updateExpense = (index: number, field: keyof ExpenseItem, value: string | number) => {
     const updatedExpenses = [...expenses]
     
     if (field === 'subTotal') {
@@ -345,12 +396,12 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
       <SheetContent className="w-[70vw] max-w-[70vw] sm:max-w-[70vw] overflow-y-auto p-8">
         <SheetHeader className="pb-8">
           <SheetTitle className="text-xl font-semibold">
-            {isEditMode ? 'Edit Invoice' : 'Buat Invoice'}
+            {isEditMode ? 'Edit Pengeluaran' : 'Tambah Pengeluaran'}
           </SheetTitle>
           <SheetDescription className="text-base">
             {isEditMode
-              ? 'Edit detail invoice dan simpan perubahan'
-              : 'Pilih jenis input dan isi form invoice dengan lengkap'
+              ? 'Edit detail pengeluaran dan simpan perubahan'
+              : 'Pilih jenis input pengeluaran dan isi form dengan lengkap'
             }
           </SheetDescription>
         </SheetHeader>
@@ -366,6 +417,31 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
               </div>
               
               <div className="space-y-4">
+                {/* Title Field */}
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">Judul Pengeluaran *</div>
+                  <Input
+                    type="text"
+                    placeholder="Masukkan judul pengeluaran"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="h-11"
+                    required
+                  />
+                </div>
+
+                {/* Notes Field */}
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">Keterangan (Opsional)</div>
+                  <textarea
+                    placeholder="Tambahkan catatan atau keterangan tambahan..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+
                 {/* Row 1: Divisi & PIC */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -493,29 +569,6 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                   </div>
                 </div>
 
-                {/* Header Row 3 - Only show when multiple expenses */}
-                {expenses.length > 1 && (
-                  <>
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="text-sm font-semibold text-gray-700">
-                        Judul Batch *
-                      </div>
-                    </div>
-
-                    {/* Data Row 3 */}
-                    <div className="grid grid-cols-1 gap-4">
-                      <div>
-                        <Input
-                          type="text"
-                          placeholder="Masukkan judul batch pengeluaran..."
-                          value={batchName}
-                          onChange={(e) => setBatchName(e.target.value)}
-                          className="h-11"
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
               </div>
             </div>
           </div>
@@ -663,10 +716,10 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                 {isLoading
                   ? "Menyimpan..."
                   : isEditMode
-                    ? "Update Invoice"
+                    ? "Update Pengeluaran"
                     : expenses.length === 1
-                      ? "Simpan Invoice"
-                      : "Simpan Invoice"
+                      ? "Simpan Pengeluaran"
+                      : "Simpan Semua Pengeluaran"
                 }
                 </Button>
               </form>

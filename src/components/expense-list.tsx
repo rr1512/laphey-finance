@@ -7,24 +7,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ExpenseSheet } from "@/components/expense-sheet"
-import { Plus, Search, Filter, X, Calendar } from "lucide-react"
-import { type Expense, type Division, type Category, type Subcategory, type PIC } from "@/lib/supabase"
+import { InvoiceSheet } from "@/components/invoice-sheet"
+import { Plus, Search, Filter, X, Calendar, Edit, Edit3 } from "lucide-react"
+import { type Division, type Category, type Subcategory, type PIC } from "@/lib/supabase"
 import { formatWIBDate } from "@/lib/timezone"
+import useCustomToast from "@/lib/use-toast"
 
 interface ExpenseListProps {
   refreshTrigger: number
   onExpenseAdded?: () => void
 }
 
-interface GroupedExpenses {
-  [batchId: string]: {
-    batchName: string | null
-    expenses: Expense[]
-    total: number
-    createdAt: string
-  }
-}
+// Removed GroupedExpenses interface - not needed for invoice system
 
 interface FilterState {
   search: string
@@ -37,9 +31,10 @@ interface FilterState {
 }
 
 export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps) {
-  const [expenses, setExpenses] = useState<Expense[]>([])
-  const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([])
-  const [groupedExpenses, setGroupedExpenses] = useState<GroupedExpenses>({})
+  const { success, error: showError, info } = useCustomToast() as any
+
+  const [expenses, setExpenses] = useState<any[]>([])
+  const [filteredExpenses, setFilteredExpenses] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [total, setTotal] = useState(0)
   const [filters, setFilters] = useState<FilterState>({
@@ -59,21 +54,30 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
   const [pics, setPics] = useState<PIC[]>([])
   const [dateRangeOpen, setDateRangeOpen] = useState(false)
 
-  const fetchExpenses = async () => {
+  // Edit state - can be Expense object or batch edit object
+  const [editingExpense, setEditingExpense] = useState<any>(null)
+
+  const fetchInvoices = async () => {
     try {
       const response = await fetch('/api/expenses')
-      
+
       if (!response.ok) {
-        console.error('Error fetching expenses')
+        console.error('Error fetching expenses:', response.status, response.statusText)
+        // Set empty array if fetch fails
+        setExpenses([])
+        setFilteredExpenses([])
         return
       }
 
-      const data: Expense[] = await response.json()
-      setExpenses(data)
-      setFilteredExpenses(data)
-      
+      const data: any[] = await response.json()
+      setExpenses(data || []) // Ensure we have an array
+      setFilteredExpenses(data || [])
+
     } catch (error) {
-      console.error('Error:', error)
+      console.error('Error fetching expenses:', error)
+      // Set empty array on error
+      setExpenses([])
+      setFilteredExpenses([])
     } finally {
       setIsLoading(false)
     }
@@ -89,33 +93,89 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
 
       if (divisionsRes.ok) {
         const divisionsData = await divisionsRes.json()
-        setDivisions(divisionsData)
+        setDivisions(divisionsData || [])
+      } else {
+        console.error('Error fetching divisions:', divisionsRes.status)
+        setDivisions([])
       }
 
       if (categoriesRes.ok) {
         const categoriesData = await categoriesRes.json()
-        setCategories(categoriesData)
+        setCategories(categoriesData || [])
+      } else {
+        console.error('Error fetching categories:', categoriesRes.status)
+        setCategories([])
       }
 
       if (picsRes.ok) {
         const picsData = await picsRes.json()
-        setPics(picsData)
+        setPics(picsData || [])
+      } else {
+        console.error('Error fetching pics:', picsRes.status)
+        setPics([])
       }
     } catch (error) {
       console.error('Error fetching filter options:', error)
+      // Set empty arrays on error
+      setDivisions([])
+      setCategories([])
+      setPics([])
     }
   }
 
-  const filterExpenses = (expenses: Expense[], filters: FilterState): Expense[] => {
+  // Edit handlers
+  const handleEditInvoice = (invoice: any) => {
+    setEditingExpense(invoice)
+  }
+
+  const handleInvoiceUpdated = () => {
+    setEditingExpense(null)
+    fetchInvoices() // Refresh the list
+    success("Invoice Berhasil Diupdate", "Data invoice telah diperbarui")
+  }
+
+  const filterExpenses = (expenses: any[], filters: FilterState): any[] => {
     return expenses.filter(expense => {
       // Search filter
       if (filters.search) {
         const searchLower = filters.search.toLowerCase()
-        const matchesSearch = 
-          expense.item?.toLowerCase().includes(searchLower) ||
-          expense.description?.toLowerCase().includes(searchLower) ||
-          expense.ref?.toLowerCase().includes(searchLower)
-        
+        let matchesSearch = false
+
+        // Search in title
+        if (expense.title?.toLowerCase().includes(searchLower)) {
+          matchesSearch = true
+        }
+
+        // Search in notes
+        if (expense.notes?.toLowerCase().includes(searchLower)) {
+          matchesSearch = true
+        }
+
+        // Search in expense number
+        if (expense.expense_number?.toLowerCase().includes(searchLower)) {
+          matchesSearch = true
+        }
+
+        // Search in details (JSONB array)
+        if (expense.details) {
+          try {
+            const details = typeof expense.details === 'string'
+              ? JSON.parse(expense.details)
+              : expense.details
+
+            if (Array.isArray(details)) {
+              details.forEach((item: any) => {
+                if (item.item?.toLowerCase().includes(searchLower) ||
+                    item.description?.toLowerCase().includes(searchLower)) {
+                  matchesSearch = true
+                }
+              })
+            }
+          } catch (error) {
+            // Ignore parsing errors
+          }
+        }
+
         if (!matchesSearch) return false
       }
 
@@ -157,22 +217,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
     })
   }
 
-  const groupExpenses = (expenses: Expense[]): GroupedExpenses => {
-      const grouped: GroupedExpenses = {}
-    expenses.forEach(expense => {
-        if (!grouped[expense.batch_id]) {
-          grouped[expense.batch_id] = {
-            batchName: expense.batch_name,
-            expenses: [],
-            total: 0,
-            createdAt: expense.created_at
-          }
-        }
-        grouped[expense.batch_id].expenses.push(expense)
-        grouped[expense.batch_id].total += expense.amount
-      })
-    return grouped
-  }
+// Removed groupExpenses function - not needed for invoice system
 
   const handleFilterChange = (key: keyof FilterState, value: string) => {
     const newFilters = { ...filters, [key]: value }
@@ -209,16 +254,13 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
   })
 
   useEffect(() => {
-    fetchExpenses()
+    fetchInvoices()
     fetchFilterOptions()
   }, [refreshTrigger])
 
   useEffect(() => {
-    const grouped = groupExpenses(filteredExpenses)
-    setGroupedExpenses(grouped)
-    
-    // Calculate total from filtered expenses
-    const totalAmount = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+    // Calculate total from filtered invoices
+    const totalAmount = filteredExpenses.reduce((sum: number, invoice: any) => sum + invoice.total_amount, 0)
     setTotal(totalAmount)
   }, [filteredExpenses])
 
@@ -499,134 +541,135 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
         </CardContent>
       </Card>
 
-      {/* Expense List */}
+      {/* Invoice Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Daftar Pengeluaran</CardTitle>
+          <CardTitle className="text-lg">Daftar Invoice</CardTitle>
         </CardHeader>
         <CardContent>
           {filteredExpenses.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
-              {expenses.length === 0 
-                ? "Belum ada pengeluaran yang tercatat"
-                : "Tidak ada pengeluaran yang sesuai dengan filter"
+              {expenses.length === 0
+                ? "Belum ada invoice yang tercatat"
+                : "Tidak ada invoice yang sesuai dengan filter"
               }
             </div>
           ) : (
-            <div className="space-y-4">
-              {Object.entries(groupedExpenses)
-                .sort(([,a], [,b]) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map(([batchId, batch]) => {
-                  // Jika batch tidak memiliki nama dan hanya ada 1 expense, tampilkan langsung tanpa header
-                  const isSingleIndividualExpense = !batch.batchName && batch.expenses.length === 1
-
-                  return (
-                    <div key={batchId} className={isSingleIndividualExpense ? "" : "border rounded-lg overflow-hidden"}>
-                      {/* Batch Header - hanya tampilkan jika bukan single individual expense */}
-                      {!isSingleIndividualExpense && (
-                        <div className="bg-gray-50 px-4 py-3 border-b">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <h3 className="font-medium text-gray-900">
-                                {batch.batchName || 'Pengeluaran Individual'}
-                              </h3>
-                              <div className="flex items-center gap-2">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  {batch.expenses[0]?.division?.name || 'Divisi tidak diketahui'}
-                                </span>
-                                <span className="text-sm text-gray-500">
-                                  {formatDate(batch.expenses[0]?.date || batch.createdAt)} • {batch.expenses.length} item
-                                </span>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Expense
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tanggal
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Divisi
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Kategori
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      PIC
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Jumlah Item
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Aksi
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredExpenses
+                    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map((invoice: any) => (
+                      <tr key={invoice.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {invoice.title}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {invoice.expense_number}
+                          </div>
+                          {invoice.notes && (
+                            <div className="text-sm text-gray-500 italic mt-1 truncate max-w-xs">
+                              "{invoice.notes}"
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <Calendar className="h-4 w-4 text-gray-400 mr-2" />
+                            <span className="text-sm text-gray-900">{formatDate(invoice.date)}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {invoice.division?.name || 'Tidak diketahui'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            <div className="text-blue-600 font-medium">
+                              {invoice.category?.name || 'Tidak ada'}
+                            </div>
+                            {invoice.subcategory?.name && (
+                              <div className="text-gray-500 text-xs mt-1">
+                                {invoice.subcategory.name}
                               </div>
-                              {/* Show category, subcategory, PIC for bulk expenses */}
-                              {batch.expenses.length > 1 && batch.expenses[0] && (
-                                <p className="text-sm text-blue-600 font-medium mt-1">
-                                  {batch.expenses[0].category?.name} • {batch.expenses[0].subcategory?.name} • PIC: {batch.expenses[0].pic?.name}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p className="font-semibold text-red-600">
-                                {formatCurrency(batch.total)}
-                              </p>
-                            </div>
+                            )}
                           </div>
-                        </div>
-                      )}
-
-                      {/* Batch Items */}
-                      <div className={isSingleIndividualExpense ? "space-y-2" : "divide-y"}>
-                        {batch.expenses.map((expense) => (
-                          <div
-                            key={expense.id}
-                            className={isSingleIndividualExpense
-                              ? "grid grid-cols-4 gap-3 items-start p-4 border rounded-lg hover:bg-gray-50"
-                              : "grid grid-cols-4 gap-3 items-center p-4 hover:bg-gray-50"
-                            }
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {invoice.pic?.name || 'Tidak ada'}
+                            {invoice.pic?.position && (
+                              <div className="text-xs text-gray-500">
+                                {invoice.pic.position}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            📦 {(() => {
+                              try {
+                                const details = typeof invoice.details === 'string'
+                                  ? JSON.parse(invoice.details)
+                                  : invoice.details
+                                return Array.isArray(details) ? details.length : 0
+                              } catch {
+                                return 0
+                              }
+                            })()} item
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right">
+                          <span className="text-sm font-bold text-red-600">
+                            {formatCurrency(invoice.total_amount)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditInvoice(invoice)}
+                            className="h-8 px-3 text-xs"
                           >
-                            {/* Kolom 1: Item */}
-                            <div className="flex-1">
-                              {/* Show badge only for individual expenses (not bulk) */}
-                              {batch.expenses.length === 1 && (
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    {expense.division?.name || 'Divisi tidak diketahui'}
-                                  </span>
-                                  <span className="text-xs text-gray-500">
-                                    {formatDate(expense.date)}
-                                  </span>
-                                </div>
-                              )}
-                              <h4 className="font-medium text-gray-900">
-                                {expense.item || expense.description}
-                              </h4>
-                              {/* Show category, subcategory, PIC only for single expenses or individual batches */}
-                              {batch.expenses.length === 1 && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {expense.category?.name} • {expense.subcategory?.name} • PIC: {expense.pic?.name}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Kolom 2: Keterangan */}
-                            <div className="flex-1">
-                              {expense.item ? (
-                                <span className="text-sm text-gray-600">
-                                  {expense.description}
-                                </span>
-                              ) : (
-                                <span className="text-sm text-gray-400">-</span>
-                              )}
-                              {expense.ref && (
-                                <div className="text-xs text-purple-600 font-medium mt-1">
-                                  Ref: {expense.ref}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Kolom 3: Qty @ Price */}
-                            <div className="text-center">
-                              {expense.qty && expense.unit && expense.price_per_unit ? (
-                                <span className="text-sm text-blue-600 font-medium">
-                                  {expense.qty} {expense.unit} @ {formatCurrency(expense.price_per_unit)}
-                                </span>
-                              ) : (
-                                <span className="text-sm text-gray-400">-</span>
-                              )}
-                            </div>
-
-                            {/* Kolom 4: Total Amount */}
-                            <div className="text-right">
-                              <p className="font-semibold text-gray-700">
-                                {formatCurrency(expense.amount)}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
+                            <Edit className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>
@@ -668,14 +711,21 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
         </div>
       </div>
 
+      {/* Edit Invoice Sheet */}
+      <InvoiceSheet
+        editInvoice={editingExpense}
+        onInvoiceUpdated={handleInvoiceUpdated}
+        onClose={() => setEditingExpense(null)}
+      />
+
       {/* Floating Action Button */}
       {onExpenseAdded && (
         <div className="fixed bottom-6 right-6 z-50">
-          <ExpenseSheet onExpenseAdded={onExpenseAdded}>
+          <InvoiceSheet onInvoiceAdded={onExpenseAdded}>
             <Button size="lg" className="rounded-full shadow-lg hover:shadow-xl transition-shadow h-14 w-14">
               <Plus className="h-6 w-6" />
             </Button>
-          </ExpenseSheet>
+          </InvoiceSheet>
         </div>
       )}
     </div>

@@ -22,81 +22,17 @@ interface BulkExpenseRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    const body: BulkExpenseRequest = await request.json()
-    const { batchName, divisionId, categoryId, subcategoryId, picId, date, ref, expenses } = body
-    
-    console.log('Bulk API received:', { 
-      batchName, 
-      expensesCount: expenses?.length, 
-      firstExpense: expenses?.[0] 
-    })
-
-    if (!batchName || !divisionId || !categoryId || !subcategoryId || !picId || !expenses || expenses.length === 0) {
-      return NextResponse.json(
-        { error: 'Missing required fields (batchName, divisionId, categoryId, subcategoryId, picId, expenses)' },
-        { status: 400 }
-      )
-    }
-
-    // Validate all expenses
-    for (const expense of expenses) {
-      if (!expense.amount) {
-        return NextResponse.json(
-          { error: 'All expense fields are required (amount)' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Generate a single batch ID for all expenses
-    const batchId = crypto.randomUUID()
-
-    // Prepare expenses with batch info
-    const expensesWithBatch = expenses.map(expense => ({
-      amount: expense.amount,
-        description: expense.description || '',
-      item: expense.item || null,
-      qty: expense.qty || null,
-      unit: expense.unit || null,
-      price_per_unit: expense.price_per_unit || null,
-      date: convertToWIBISO(date || ''),
-      ref: ref || null,
-      batch_id: batchId,
-      batch_name: batchName,
-      division_id: divisionId,
-      category_id: categoryId,
-      subcategory_id: subcategoryId,
-      pic_id: picId
-    }))
-
-    console.log('Inserting expenses:', expensesWithBatch.length, 'items')
-    
-    const { data, error } = await supabaseServer
-      .from('expenses')
-      .insert(expensesWithBatch)
-      .select(`
-        *,
-        division:divisions(*),
-        category:categories(*),
-        subcategory:subcategories(*),
-        pic:pics(*)
-      `)
-
-    if (error) {
-      console.error('Supabase error:', error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
-    console.log('Successfully inserted:', data.length, 'expenses')
-    
-    return NextResponse.json({
-      message: `${data.length} expenses created successfully`,
-      batchId,
-      expenses: data
-    }, { status: 201 })
-    
+    // Bulk API is no longer needed - system now uses invoice-based structure
+    return NextResponse.json(
+      {
+        error: 'Bulk expense API has been deprecated',
+        message: 'Use /api/invoices for creating invoices with multiple items',
+        migration: 'System now uses invoice-based structure where each invoice can have multiple items'
+      },
+      { status: 410 } // Gone
+    )
   } catch (error) {
-    console.error('Bulk insert error:', error)
+    console.error('Bulk API error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

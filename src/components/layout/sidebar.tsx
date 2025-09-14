@@ -4,14 +4,16 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Home, Building2, Receipt, BarChart3, Tags, List, ChevronDown, ChevronRight, PieChart } from "lucide-react"
+import { Home, Building2, Receipt, BarChart3, Tags, List, ChevronDown, ChevronRight, PieChart, Shield, Users, Download } from "lucide-react"
 import { useState } from "react"
+import { useAuth } from "@/lib/auth-context"
 
 interface SidebarProps {
   className?: string
 }
 
-const navigation = [
+// Base navigation items
+const baseNavigation = [
   {
     name: "Dashboard",
     href: "/",
@@ -48,18 +50,48 @@ const navigation = [
         href: "/reports/graphic",
         icon: PieChart,
         description: "Visualisasi grafik"
+      },
+      {
+        name: "Export Laporan",
+        href: "/reports/export",
+        icon: Download,
+        description: "Export & cetak laporan"
       }
     ]
   }
 ]
 
+// Admin menu item
+const adminMenu = {
+  name: "Admin",
+  href: "/admin",
+  icon: Shield,
+  description: "Panel administrasi",
+  hasSubmenu: true,
+  submenu: [
+    {
+      name: "Manajemen User",
+      href: "/admin/users",
+      icon: Users,
+      description: "Kelola user & role"
+    }
+  ]
+}
+
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname()
+  const { user } = useAuth()
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
 
+  // Build navigation array with conditional admin menu
+  const navigation = [
+    ...baseNavigation,
+    ...(user?.role === 'superadmin' ? [adminMenu] : [])
+  ]
+
   const toggleSubmenu = (menuName: string) => {
-    setExpandedMenus(prev => 
-      prev.includes(menuName) 
+    setExpandedMenus(prev =>
+      prev.includes(menuName)
         ? prev.filter(name => name !== menuName)
         : [...prev, menuName]
     )

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { ExpenseList } from "@/components/expense-list"
-import { ExpenseSheet } from "@/components/expense-sheet"
+import { InvoiceSheet } from "@/components/invoice-sheet"
 import { Button } from "@/components/ui/button"
 import { Plus, ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -11,7 +11,7 @@ import Link from "next/link"
 export default function ExpensesPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  const handleExpenseAdded = () => {
+  const handleInvoiceAdded = () => {
     setRefreshTrigger(prev => prev + 1)
   }
 
@@ -28,22 +28,22 @@ export default function ExpensesPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">List Pengeluaran</h1>
-              <p className="text-gray-600">Daftar semua pengeluaran yang telah dicatat</p>
+              <h1 className="text-2xl font-bold text-gray-900">List Invoice</h1>
+              <p className="text-gray-600">Daftar semua invoice yang telah dibuat</p>
             </div>
           </div>
           
-          {/* Add Expense Button */}
-          <ExpenseSheet onExpenseAdded={handleExpenseAdded}>
+          {/* Add Invoice Button */}
+          <InvoiceSheet onInvoiceAdded={handleInvoiceAdded}>
             <Button size="lg" className="flex items-center gap-2">
               <Plus className="h-5 w-5" />
-              Tambah Pengeluaran
+              Buat Invoice
             </Button>
-          </ExpenseSheet>
+          </InvoiceSheet>
         </div>
 
-        {/* Expense List */}
-        <ExpenseList refreshTrigger={refreshTrigger} onExpenseAdded={handleExpenseAdded} />
+        {/* Invoice List */}
+        <ExpenseList refreshTrigger={refreshTrigger} onExpenseAdded={handleInvoiceAdded} />
       </div>
     </DashboardLayout>
   )

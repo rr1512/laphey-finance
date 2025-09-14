@@ -45,6 +45,38 @@ export type Subcategory = {
   updated_at: string
 }
 
+export type Invoice = {
+  id: string
+  invoice_number: string
+  pic_id: string
+  division_id: string
+  category_id: string
+  subcategory_id: string
+  date: string
+  total_amount: number
+  notes: string | null
+  division?: Division
+  category?: Category
+  subcategory?: Subcategory
+  pic?: PIC
+  items?: InvoiceItem[]
+  created_at: string
+  updated_at: string
+}
+
+export type InvoiceItem = {
+  id: string
+  invoice_id: string
+  item: string
+  qty: number
+  unit: string
+  price_per_unit: number
+  amount: number
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type Expense = {
   id: string
   amount: number
