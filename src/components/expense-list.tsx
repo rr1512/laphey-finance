@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { InvoiceSheet } from "@/components/expense-sheet"
-import { Plus, Search, Filter, X, Calendar, Edit, Edit3, Trash2 } from "lucide-react"
+import { Plus, Search, Filter, X, Calendar, Edit, Edit3, Trash2, ChevronDown, ChevronRight } from "lucide-react"
 import { type Division, type Category, type Subcategory, type PIC } from "@/lib/supabase"
 import { formatWIBDate } from "@/lib/timezone"
 import useCustomToast from "@/lib/use-toast"
@@ -56,6 +56,9 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
 
   // Edit state - can be Expense object or batch edit object
   const [editingExpense, setEditingExpense] = useState<any>(null)
+  
+  // Expand state for item details
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
 
   const fetchInvoices = async () => {
     try {
@@ -308,6 +311,34 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
 
   const formatDate = (dateString: string) => {
     return formatWIBDate(dateString)
+  }
+
+  // Toggle expand/collapse for item details
+  const toggleExpanded = (invoiceId: string) => {
+    const newExpanded = new Set(expandedItems)
+    if (newExpanded.has(invoiceId)) {
+      newExpanded.delete(invoiceId)
+    } else {
+      newExpanded.add(invoiceId)
+    }
+    setExpandedItems(newExpanded)
+  }
+
+  // Get item details from invoice
+  const getItemDetails = (invoice: any) => {
+    try {
+      const details = typeof invoice.details === 'string'
+        ? JSON.parse(invoice.details)
+        : invoice.details
+      return Array.isArray(details) ? details : []
+    } catch {
+      return []
+    }
+  }
+
+  // Get item count
+  const getItemCount = (invoice: any) => {
+    return getItemDetails(invoice).length
   }
 
   if (isLoading) {
@@ -583,12 +614,6 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Expense
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tanggal
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Divisi
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -596,6 +621,12 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       PIC
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tanggal
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Nama Expenses
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Jumlah Item
@@ -612,30 +643,37 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                   {filteredExpenses
                     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                     .map((invoice: any) => (
-                      <tr key={invoice.id} className="hover:bg-gray-50">
+                      <React.Fragment key={invoice.id}>
+                        <tr 
+                          className="hover:bg-gray-50 cursor-pointer"
+                          onClick={() => {
+                            if (getItemCount(invoice) > 1) {
+                              toggleExpanded(invoice.id)
+                            }
+                          }}
+                        >
                         <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {invoice.title}
+                          <div className="flex items-center gap-2">
+                            {getItemCount(invoice) > 1 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleExpanded(invoice.id)
+                                }}
+                                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                title={expandedItems.has(invoice.id) ? "Sembunyikan detail" : "Tampilkan detail"}
+                              >
+                                {expandedItems.has(invoice.id) ? (
+                                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                                )}
+                              </button>
+                            )}
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {invoice.division?.name || 'Tidak diketahui'}
+                            </span>
                           </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {invoice.expense_number}
-                          </div>
-                          {invoice.notes && (
-                            <div className="text-sm text-gray-500 italic mt-1 truncate max-w-xs">
-                              &quot;{invoice.notes}&quot;
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                            <span className="text-sm text-gray-900">{formatDate(invoice.date)}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {invoice.division?.name || 'Tidak diketahui'}
-                          </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
@@ -660,17 +698,27 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                           </div>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <Calendar className="h-4 w-4 text-gray-400 mr-2" />
+                            <span className="text-sm text-gray-900">{formatDate(invoice.date)}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {invoice.title}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {invoice.expense_number}
+                          </div>
+                          {invoice.notes && (
+                            <div className="text-sm text-gray-500 italic mt-1 truncate max-w-xs">
+                              &quot;{invoice.notes}&quot;
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            {(() => {
-                              try {
-                                const details = typeof invoice.details === 'string'
-                                  ? JSON.parse(invoice.details)
-                                  : invoice.details
-                                return Array.isArray(details) ? details.length : 0
-                              } catch {
-                                return 0
-                              }
-                            })()} item
+                            {getItemCount(invoice)} item
                           </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
@@ -683,7 +731,10 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleEditInvoice(invoice)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEditInvoice(invoice)
+                              }}
                               className="h-8 px-3 text-xs"
                             >
                               <Edit className="h-3 w-3 mr-1" />
@@ -692,7 +743,10 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleDeleteInvoice(invoice)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteInvoice(invoice)
+                              }}
                               className="h-8 px-3 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                             >
                               <Trash2 className="h-3 w-3 mr-1" />
@@ -700,7 +754,51 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                             </Button>
                           </div>
                         </td>
-                      </tr>
+                        </tr>
+                        
+                        {/* Expanded Item Details */}
+                        {expandedItems.has(invoice.id) && getItemCount(invoice) > 1 && (
+                          <tr className="bg-gray-50">
+                            <td colSpan={8} className="px-4 py-4">
+                              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                                <h4 className="text-sm font-semibold text-gray-900 mb-3">Detail Item:</h4>
+                                <div className="space-y-2">
+                                  {getItemDetails(invoice).map((item: any, index: number) => (
+                                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-4">
+                                          <span className="text-sm font-medium text-gray-900 min-w-[60px]">
+                                            {index + 1}.
+                                          </span>
+                                          <div className="flex-1">
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {item.item || 'N/A'}
+                                            </div>
+                                            {item.description && (
+                                              <div className="text-xs text-gray-500 mt-1">
+                                                {item.description}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="text-sm text-gray-600 min-w-[80px] text-center">
+                                            {item.qty || 0} {item.unit || 'pcs'}
+                                          </div>
+                                          <div className="text-sm text-gray-600 min-w-[100px] text-right">
+                                            {formatCurrency(item.price_per_unit || 0)} / {item.unit || 'pcs'}
+                                          </div>
+                                          <div className="text-sm font-semibold text-gray-900 min-w-[120px] text-right">
+                                            {formatCurrency(item.amount || 0)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                 </tbody>
               </table>

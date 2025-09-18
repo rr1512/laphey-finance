@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Trash2, User } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Plus, Trash2, User, AlertTriangle } from "lucide-react"
 import { type Division, type Category, type Subcategory, type PIC } from "@/lib/supabase"
 import { getWIBDateTimeLocal } from "@/lib/timezone"
 import useCustomToast from "@/lib/use-toast"
@@ -40,6 +41,8 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [pics, setPics] = useState<PIC[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   
   // Form state
   const [divisionId, setDivisionId] = useState("")
@@ -90,6 +93,7 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
     updatedExpenses[index].pricePerUnit = numericValue
     updatedExpenses[index].subTotal = parseFloat(updatedExpenses[index].qty || '0') * parseFloat(numericValue || '0')
     setExpenses(updatedExpenses)
+    setHasUnsavedChanges(true)
   }
 
   // Initialize price displays
@@ -267,6 +271,86 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
   }, [expenses, isEditMode])
 
 
+  // Check if form has any data
+  const hasFormData = () => {
+    return (
+      divisionId ||
+      categoryId ||
+      subcategoryId ||
+      picId ||
+      expenseRef ||
+      batchName ||
+      invoiceNotes ||
+      expenses.some(exp => exp.item || exp.qty || exp.unit || exp.pricePerUnit || exp.description)
+    )
+  }
+
+  // Check if data has changed from original (for edit mode)
+  const hasDataChanged = () => {
+    if (!isEditMode || !editInvoice) {
+      return hasFormData() // For new invoices, check if any data exists
+    }
+
+    // For edit mode, compare with original data
+    const originalDetails = getItemDetails(editInvoice)
+    const currentDetails = expenses.filter(exp => exp.item || exp.qty || exp.unit || exp.pricePerUnit || exp.description)
+
+    // Check if basic fields changed
+    const originalDate = (() => {
+      if (editInvoice.date) {
+        const date = new Date(editInvoice.date)
+        return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 16)
+      }
+      return ''
+    })()
+
+    const basicFieldsChanged = (
+      divisionId !== (editInvoice.division_id || '') ||
+      categoryId !== (editInvoice.category_id || '') ||
+      subcategoryId !== (editInvoice.subcategory_id || '') ||
+      picId !== (editInvoice.pic_id || '') ||
+      (expenseRef || '') !== (editInvoice.ref || '') ||
+      batchName !== (editInvoice.title || '') ||
+      (invoiceNotes || '') !== (editInvoice.notes || '') ||
+      expenseDate !== originalDate
+    )
+
+    // Check if expense details changed
+    const detailsChanged = (
+      originalDetails.length !== currentDetails.length ||
+      originalDetails.some((origItem: any, index: number) => {
+        const currentItem = currentDetails[index]
+        if (!currentItem) return true
+        
+        const itemChanged = (
+          origItem.item !== currentItem.item ||
+          origItem.qty?.toString() !== currentItem.qty?.toString() ||
+          origItem.unit !== currentItem.unit ||
+          origItem.price_per_unit?.toString() !== currentItem.pricePerUnit?.toString() ||
+          (origItem.description || '') !== (currentItem.description || '')
+        )
+        
+        return itemChanged
+      })
+    )
+
+    return basicFieldsChanged || detailsChanged
+  }
+
+  // Get item details from invoice (helper function)
+  const getItemDetails = (invoice: any) => {
+    try {
+      const details = typeof invoice.details === 'string'
+        ? JSON.parse(invoice.details)
+        : invoice.details
+      return Array.isArray(details) ? details : []
+    } catch {
+      return []
+    }
+  }
+
   // Reset form when sheet closes
   const resetForm = () => {
     setDivisionId("")
@@ -281,6 +365,37 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
       { item: "", qty: "", unit: "", pricePerUnit: "", description: "", subTotal: 0 }
     ])
     setPriceDisplays({})
+    setHasUnsavedChanges(false)
+  }
+
+  // Handle sheet close with confirmation
+  const handleSheetClose = (open: boolean) => {
+    if (!open && hasDataChanged()) {
+      setShowConfirmDialog(true)
+      return // Don't close the sheet yet
+    }
+    
+    setIsOpen(open)
+    if (!open) {
+      resetForm()
+      if (isEditMode && onClose) {
+        onClose() // Notify parent that edit mode is closed
+      }
+    }
+  }
+
+  // Handle confirmation dialog
+  const handleConfirmClose = () => {
+    setShowConfirmDialog(false)
+    setIsOpen(false)
+    resetForm()
+    if (isEditMode && onClose) {
+      onClose() // Notify parent that edit mode is closed
+    }
+  }
+
+  const handleCancelClose = () => {
+    setShowConfirmDialog(false)
   }
 
 
@@ -383,6 +498,7 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
         onInvoiceAdded?.()
       }
 
+      setHasUnsavedChanges(false)
       resetForm()
       setIsOpen(false)
 
@@ -397,6 +513,7 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
   const addExpenseRow = () => {
     const newExpenses = [...expenses, { item: "", qty: "", unit: "", pricePerUnit: "", description: "", subTotal: 0 }]
     setExpenses(newExpenses)
+    setHasUnsavedChanges(true)
 
     // Auto-focus to first input of new row after a short delay
     setTimeout(() => {
@@ -411,6 +528,7 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
   const removeExpenseRow = (index: number) => {
     if (expenses.length > 1) {
       setExpenses(expenses.filter((_, i) => i !== index))
+      setHasUnsavedChanges(true)
     }
   }
 
@@ -438,6 +556,7 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
     }
 
     setExpenses(updatedExpenses)
+    setHasUnsavedChanges(true)
   }
 
   const totalBulkAmount = expenses
@@ -445,15 +564,7 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
     .reduce((sum, exp) => sum + exp.subTotal, 0)
 
   return (
-    <Sheet open={isOpen} onOpenChange={(open) => {
-      setIsOpen(open)
-      if (!open) {
-        resetForm()
-        if (isEditMode && onClose) {
-          onClose() // Notify parent that edit mode is closed
-        }
-      }
-    }}>
+    <Sheet open={isOpen} onOpenChange={handleSheetClose}>
       {children && !isEditMode && (
         <SheetTrigger asChild>
           {children}
@@ -485,7 +596,10 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
               <div className="grid grid-cols-6 gap-4">
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-gray-700">Divisi *</div>
-                  <Select value={divisionId} onValueChange={setDivisionId}>
+                  <Select value={divisionId} onValueChange={(value) => {
+                    setDivisionId(value)
+                    setHasUnsavedChanges(true)
+                  }}>
                     <SelectTrigger className="w-full bg-white border border-gray-300 rounded-md px-3">
                       <SelectValue placeholder="Pilih divisi" />
                     </SelectTrigger>
@@ -501,7 +615,10 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-gray-700">PIC *</div>
-                  <Select value={picId} onValueChange={setPicId} disabled={!divisionId}>
+                  <Select value={picId} onValueChange={(value) => {
+                    setPicId(value)
+                    setHasUnsavedChanges(true)
+                  }} disabled={!divisionId}>
                     <SelectTrigger className="w-full bg-white border border-gray-300 rounded-md px-3">
                       <SelectValue placeholder="Pilih PIC" />
                     </SelectTrigger>
@@ -523,7 +640,10 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-gray-700">Kategori *</div>
-                  <Select value={categoryId} onValueChange={setCategoryId}>
+                  <Select value={categoryId} onValueChange={(value) => {
+                    setCategoryId(value)
+                    setHasUnsavedChanges(true)
+                  }}>
                     <SelectTrigger className=" w-full bg-white border border-gray-300 rounded-md px-3">
                       <SelectValue placeholder="Pilih kategori" />
                     </SelectTrigger>
@@ -545,7 +665,10 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
 
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-gray-700">Sub Kategori *</div>
-                  <Select value={subcategoryId} onValueChange={setSubcategoryId} disabled={!categoryId}>
+                  <Select value={subcategoryId} onValueChange={(value) => {
+                    setSubcategoryId(value)
+                    setHasUnsavedChanges(true)
+                  }} disabled={!categoryId}>
                     <SelectTrigger className=" w-full bg-white border border-gray-300 rounded-md px-3">
                       <SelectValue placeholder="Pilih sub kategori" />
                     </SelectTrigger>
@@ -564,7 +687,10 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                   <Input
                     type="datetime-local"
                     value={expenseDate}
-                    onChange={(e) => setExpenseDate(e.target.value)}
+                    onChange={(e) => {
+                      setExpenseDate(e.target.value)
+                      setHasUnsavedChanges(true)
+                    }}
                       className="bg-white border border-gray-300 rounded-md px-3"
                   />
                 </div>
@@ -575,7 +701,10 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                     type="text"
                     placeholder="INV-001, PO-123"
                     value={expenseRef}
-                    onChange={(e) => setExpenseRef(e.target.value)}
+                    onChange={(e) => {
+                      setExpenseRef(e.target.value)
+                      setHasUnsavedChanges(true)
+                    }}
                       className="bg-white border border-gray-300 rounded-md px-3"
                   />
                 </div>
@@ -589,7 +718,10 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                     type="text"
                     placeholder="Masukkan judul invoice..."
                     value={batchName}
-                    onChange={(e) => setBatchName(e.target.value)}
+                    onChange={(e) => {
+                      setBatchName(e.target.value)
+                      setHasUnsavedChanges(true)
+                    }}
                     className="bg-white border border-gray-300 rounded-md px-3"
                   />
                 </div>
@@ -599,7 +731,10 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
                     type="text"
                     placeholder="Tambahkan catatan atau keterangan..."
                     value={invoiceNotes}
-                    onChange={(e) => setInvoiceNotes(e.target.value)}
+                    onChange={(e) => {
+                      setInvoiceNotes(e.target.value)
+                      setHasUnsavedChanges(true)
+                    }}
                     className="bg-white border border-gray-300 rounded-md px-3"
                   />
                 </div>
@@ -767,6 +902,52 @@ export function InvoiceSheet({ onInvoiceAdded, editInvoice, onInvoiceUpdated, on
           </div>
         </div>
       </SheetContent>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-semibold text-gray-900">
+                  Apakah ingin menutup Form ini?
+                </DialogTitle>
+                <DialogDescription className="text-sm text-gray-600 mt-1">
+                  Form invoice ini masih memiliki data yang belum disimpan
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Jika anda menutup form ini, semua perubahan yang sudah dibuat akan hilang.
+            </p>
+          </div>
+
+          <DialogFooter className="flex gap-3 sm:gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancelClose}
+              className="flex-1"
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmClose}
+              className="flex-1"
+            >
+              Ya, Tutup Form
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   )
 }
