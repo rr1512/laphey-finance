@@ -641,7 +641,7 @@ export function ExpenseList({ refreshTrigger, onExpenseAdded }: ExpenseListProps
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredExpenses
-                    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
                     .map((invoice: any) => (
                       <React.Fragment key={invoice.id}>
                         <tr 
